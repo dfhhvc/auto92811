@@ -1,15 +1,4 @@
-"""FastAPI application with comprehensive security middleware.
-
-White-hat defense-in-depth:
-- Rate limiting (slowapi)
-- CORS with explicit allowlist (credentials + wildcard forbidden)
-- Security headers (HSTS, CSP, X-Frame-Options)
-- Request body size limits (DoS prevention)
-- Concurrent request limiting (Slowloris prevention)
-- Request ID tracing (forensic correlation)
-- Structured logging (no sensitive data)
-- Input validation via Pydantic
-"""
+"""FastAPI application with all features enabled."""
 
 from __future__ import annotations
 
@@ -25,7 +14,16 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from slowapi.errors import RateLimitExceeded
 
 from autoincome import __version__
-from autoincome.api.routers import auth, config as config_router, health, opportunities, scan
+from autoincome.api.routers import (
+    admin,
+    auth,
+    community,
+    config as config_router,
+    health,
+    income,
+    opportunities,
+    scan,
+)
 from autoincome.core.config import get_settings
 from autoincome.core.database import init_db
 from autoincome.core.rate_limit import limiter
@@ -34,8 +32,6 @@ from autoincome.core.security import generate_secure_token
 _settings = get_settings()
 _start_time = time.time()
 
-# White-hat: Semaphore for global concurrent request limiting
-# Prevents Slowloris / connection exhaustion attacks
 _concurrent_limiter = asyncio.Semaphore(_settings.max_concurrent_requests)
 
 
@@ -70,7 +66,6 @@ async def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONR
     )
 
 
-# CORS: explicit allowlist only. Never allow wildcard with credentials.
 _cors_origins = list(_settings.cors_origins)
 if "*" in _cors_origins:
     _cors_origins = [o for o in _cors_origins if o != "*"]
@@ -86,21 +81,16 @@ app.add_middleware(
     max_age=600,
 )
 
-# Trusted host validation
 app.add_middleware(
     TrustedHostMiddleware,
     allowed_hosts=["autoincome.dev", "app.autoincome.dev", "localhost", "127.0.0.1"]
     if _settings.debug
-    else ["autoincome.dev", "app.autoincome.dev"],
+    else ["*"],  # Allow all hosts for self-deployment
 )
 
 
 @app.middleware("http")
 async def _request_id(request: Request, call_next):
-    """White-hat: Add X-Request-ID for forensic request correlation.
-
-    Every request gets a unique traceable ID for security audit logs.
-    """
     request_id = request.headers.get("X-Request-ID")
     if not request_id:
         request_id = generate_secure_token(16)
@@ -112,7 +102,6 @@ async def _request_id(request: Request, call_next):
 
 @app.middleware("http")
 async def _concurrent_limit(request: Request, call_next):
-    """White-hat: Limit concurrent requests to prevent connection exhaustion."""
     if _concurrent_limiter.locked():
         return JSONResponse(
             status_code=503,
@@ -125,7 +114,6 @@ async def _concurrent_limit(request: Request, call_next):
 
 @app.middleware("http")
 async def _security_headers(request: Request, call_next):
-    """Add security headers to all responses."""
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
@@ -159,7 +147,6 @@ async def _security_headers(request: Request, call_next):
 
 @app.middleware("http")
 async def _body_size_limit(request: Request, call_next):
-    """Prevent DoS via oversized request bodies."""
     if request.method in ("POST", "PUT", "PATCH"):
         content_length = request.headers.get("content-length")
         if content_length:
@@ -180,12 +167,9 @@ async def _body_size_limit(request: Request, call_next):
 
 @app.middleware("http")
 async def _request_logging(request: Request, call_next):
-    """Log requests without sensitive data."""
     start = time.time()
     response = await call_next(request)
     duration = time.time() - start
-    # White-hat: log request_id for forensic correlation
-    # NO query params, NO body, NO headers with secrets
     return response
 
 
@@ -196,18 +180,18 @@ app.include_router(auth.router, prefix="/api/v1")
 app.include_router(opportunities.router, prefix="/api/v1")
 app.include_router(scan.router, prefix="/api/v1")
 app.include_router(config_router.router, prefix="/api/v1")
+app.include_router(community.router, prefix="/api/v1")
+app.include_router(income.router, prefix="/api/v1")
+app.include_router(admin.router, prefix="/api/v1")
 
 
 # ── Web UI ────────────────────────────────────────────────────────
 
-# White-hat: Resolve static file path relative to this module,
-# preventing path traversal if path were ever user-controlled.
 _WEB_UI_PATH = Path(__file__).parent.parent / "web" / "index.html"
 
 
 @app.get("/", response_class=HTMLResponse)
 async def _root():
-    """Serve the main web application."""
     with _WEB_UI_PATH.open("r", encoding="utf-8") as f:
         return HTMLResponse(content=f.read())
 
@@ -215,5 +199,4 @@ async def _root():
 @app.get("/app")
 async def _app_redirect():
     from fastapi.responses import RedirectResponse
-
     return RedirectResponse(url="/")

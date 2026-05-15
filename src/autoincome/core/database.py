@@ -1,10 +1,4 @@
-"""Async SQLite database layer with SQL injection prevention.
-
-All queries use parameterized statements.
-No raw SQL concatenation with user input.
-Race-condition-safe singleton initialization.
-Includes security audit logging.
-"""
+"""Async SQLite database layer with all models."""
 
 from __future__ import annotations
 
@@ -29,11 +23,7 @@ from autoincome.core.config import get_settings
 Base = declarative_base()
 
 
-# ── Models ────────────────────────────────────────────────────────
-
 class OpportunityModel(Base):
-    """Persistent opportunity record."""
-
     __tablename__ = "opportunities"
 
     id = Column(String(32), primary_key=True, index=True)
@@ -59,8 +49,6 @@ class OpportunityModel(Base):
 
 
 class UserModel(Base):
-    """User account record."""
-
     __tablename__ = "users"
 
     id = Column(String(32), primary_key=True, index=True)
@@ -77,8 +65,6 @@ class UserModel(Base):
 
 
 class ScanLogModel(Base):
-    """Audit log for scan operations."""
-
     __tablename__ = "scan_logs"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -95,30 +81,17 @@ class ScanLogModel(Base):
 
 
 class TokenBlacklistModel(Base):
-    """JWT token revocation blacklist.
-
-    Tokens are added here on logout. Expired entries should be
-    periodically cleaned by a background job.
-    """
-
     __tablename__ = "token_blacklist"
 
     jti = Column(String(32), primary_key=True, index=True)
     expires_at = Column(DateTime, nullable=False, index=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
-    # Security: prevent accidental leakage of blacklisted tokens in logs
     def __repr__(self) -> str:
         return f"TokenBlacklistModel(jti=***{self.jti[-4:]}, expired={self.expires_at})"
 
 
 class SecurityAuditLogModel(Base):
-    """Security event audit log.
-
-    White-hat principle: every security-relevant event is recorded
-    for forensic analysis and intrusion detection.
-    """
-
     __tablename__ = "security_audit_logs"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -131,7 +104,51 @@ class SecurityAuditLogModel(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
-# ── Engine & Session (thread-safe singleton) ──────────────────────
+class CommunityVoteModel(Base):
+    """Community verification votes for opportunities."""
+
+    __tablename__ = "community_votes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    opportunity_id = Column(String(32), nullable=False, index=True)
+    user_id = Column(String(32), nullable=False, index=True)
+    vote = Column(Integer, nullable=False)  # 1=upvote, -1=downvote
+    comment = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class IncomeRecordModel(Base):
+    """User income tracking records."""
+
+    __tablename__ = "income_records"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(32), nullable=False, index=True)
+    opportunity_id = Column(String(32), nullable=False, index=True)
+    amount = Column(Float, nullable=False)
+    currency = Column(String(8), default="CNY")
+    description = Column(Text, nullable=True)
+    recorded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class SpiderStatusModel(Base):
+    """Spider execution status tracking."""
+
+    __tablename__ = "spider_status"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    spider_name = Column(String(64), nullable=False, index=True)
+    status = Column(String(32), default="idle")
+    last_run = Column(DateTime, nullable=True)
+    last_success = Column(DateTime, nullable=True)
+    last_error = Column(Text, nullable=True)
+    total_runs = Column(Integer, default=0)
+    success_count = Column(Integer, default=0)
+    error_count = Column(Integer, default=0)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+# ── Engine & Session ──────────────────────────────────────────────
 
 _async_engine: Any = None
 _async_session: Any = None
@@ -140,7 +157,6 @@ _session_lock = threading.Lock()
 
 
 def get_async_engine():
-    """Lazy-init async engine (thread-safe)."""
     global _async_engine
     if _async_engine is None:
         with _engine_lock:
@@ -157,7 +173,6 @@ def get_async_engine():
 
 
 def get_async_session() -> async_sessionmaker[AsyncSession]:
-    """Lazy-init async session factory (thread-safe)."""
     global _async_session
     if _async_session is None:
         with _session_lock:
@@ -171,16 +186,13 @@ def get_async_session() -> async_sessionmaker[AsyncSession]:
 
 
 async def init_db() -> None:
-    """Create all tables."""
     settings = get_settings()
-    # Ensure parent directory exists before creating database
     settings.db_path.parent.mkdir(parents=True, exist_ok=True)
     async with get_async_engine().begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
 
 async def get_db() -> AsyncIterator[AsyncSession]:
-    """FastAPI dependency for database sessions."""
     session = get_async_session()()
     try:
         yield session
@@ -201,11 +213,6 @@ async def log_security_event(
     details: str | None = None,
     success: bool = True,
 ) -> None:
-    """Write a security audit event.
-
-    White-hat: All auth events, suspicious activity, and policy violations
-    are recorded for forensic analysis.
-    """
     log = SecurityAuditLogModel(
         event_type=event_type,
         user_id=user_id,

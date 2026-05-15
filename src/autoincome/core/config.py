@@ -15,6 +15,16 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from autoincome.core.security import validate_secret_key_entropy
 
 
+# Default scoring weights (centralized, never hardcoded in business logic)
+DEFAULT_SCORING_WEIGHTS: dict[str, float] = {
+    "feasibility": 0.30,
+    "timeliness": 0.25,
+    "credibility": 0.20,
+    "roi": 0.15,
+    "replicability": 0.10,
+}
+
+
 class Settings(BaseSettings):
     """Application settings with strict validation."""
 
@@ -71,7 +81,6 @@ class Settings(BaseSettings):
     @field_validator("secret_key")
     @classmethod
     def _validate_secret_key(cls, v: str) -> str:
-        # White-hat: entropy check prevents weak keys like 'aaaaaaaa...'
         validate_secret_key_entropy(v, min_bits=3.5)
         return v
     
@@ -85,8 +94,6 @@ class Settings(BaseSettings):
     @field_validator("db_path")
     @classmethod
     def _validate_db_path(cls, v: Path) -> Path:
-        # White-hat: validate path but do NOT create directories at validation time
-        # Directory creation belongs in lifespan/startup, not in config validation
         if not v.name or v.name in (".", ".."):
             raise ValueError("Invalid database path")
         return v
@@ -97,6 +104,14 @@ class Settings(BaseSettings):
             f"Settings(env={self.env}, debug={self.debug}, "
             f"host={self.host}, port={self.port})"
         )
+    
+    # ── Methods ───────────────────────────────────────────────────
+    def get_scoring_weights(self) -> dict[str, float]:
+        """Return the default scoring weights.
+        
+        In future versions, this may read from config file or database.
+        """
+        return DEFAULT_SCORING_WEIGHTS.copy()
 
 
 # Global singleton

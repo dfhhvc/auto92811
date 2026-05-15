@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "autoincome"
-version = "3.0.0"
-description = "AI-powered passive income opportunity aggregator with intelligent deduplication, scoring, and cross-platform recommendations"
+version = "4.0.0"
+description = "AI-powered passive income opportunity aggregator — production-grade architecture"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.11"
@@ -27,22 +27,54 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
+    # Web Framework
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
+    "python-multipart>=0.0.19",
+    "jinja2>=3.1.0",
+
+    # Data Validation
     "pydantic>=2.10.0",
     "pydantic-settings>=2.6.0",
-    "sqlalchemy>=2.0.36",
-    "aiosqlite>=0.20.0",
+
+    # Database — PostgreSQL + Async + Migrations
+    "sqlalchemy[asyncio]>=2.0.36",
+    "asyncpg>=0.30.0",
+    "alembic>=1.14.0",
+
+    # Cache + Task Queue
+    "redis>=5.2.0",
+    "celery>=5.4.0",
+    "celery-redbeat>=2.2.0",
+
+    # HTTP Client
     "httpx>=0.28.0",
-    "jinja2>=3.1.0",
-    "python-multipart>=0.0.19",
+
+    # Security
     "python-jose[cryptography]>=3.3.0",
     "passlib[bcrypt]>=1.7.4",
     "slowapi>=0.1.9",
-    " bleach>=6.2.0",
+    "python-ipware>=3.0.0",
+
+    # Monitoring & Metrics
+    "prometheus-client>=0.21.0",
+    "starlette-prometheus>=0.10.0",
+
+    # Structured Logging
+    "structlog>=24.4.0",
+    "python-json-logger>=2.0.7",
+
+    # Content Processing
+    "bleach>=6.2.0",
     "markdown>=3.7.0",
-    "apscheduler>=3.11.0",
+    "beautifulsoup4>=4.12.0",
+    "lxml>=5.3.0",
+
+    # Utilities
     "aiofiles>=24.1.0",
+    "tenacity>=9.0.0",
+    "orjson>=3.10.0",
+    "pydantic-extra-types>=2.10.0",
 ]
 
 [project.optional-dependencies]
@@ -50,23 +82,25 @@ dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",
     "pytest-cov>=6.0.0",
+    "pytest-xdist>=3.6.0",
+    "factory-boy>=3.3.0",
+    "faker>=33.0.0",
     "mypy>=1.13.0",
     "ruff>=0.8.0",
     "bandit>=1.8.0",
     "safety>=3.2.0",
     "pre-commit>=4.0.0",
+    "httpx>=0.28.0",
 ]
 
 [project.scripts]
 autoincome = "autoincome.cli:main"
 
 [project.urls]
-Homepage = "https://autoincome.dev"
-Documentation = "https://docs.autoincome.dev"
+Homepage = "https://github.com/dfhhvc/auto92811"
 Repository = "https://github.com/dfhhvc/auto92811"
 Issues = "https://github.com/dfhhvc/auto92811/issues"
 Changelog = "https://github.com/dfhhvc/auto92811/blob/main/CHANGELOG.md"
-Docker = "https://hub.docker.com/r/dfhhvc/autoincome"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/autoincome"]
@@ -102,7 +136,7 @@ show_error_codes = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-addopts = "--cov=autoincome --cov-report=term-missing --cov-fail-under=80"
+addopts = "--cov=autoincome --cov-report=term-missing --cov-fail-under=80 -n auto"
 
 [tool.coverage.run]
 source = ["src/autoincome"]

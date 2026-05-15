@@ -1,0 +1,177 @@
+"""Production-grade Docker Compose for AutoIncome v4.
+
+Services:
+    - app: FastAPI application
+    - db: PostgreSQL 16 with persistence
+    - redis: Redis 7 (cache + task queue + Celery broker)
+    - celery-worker: Background task processor
+    - celery-beat: Scheduled task scheduler
+    - prometheus: Metrics collection
+    - grafana: Monitoring dashboard
+"""
+# This is a YAML file, not Python. Saved as .yml for Docker Compose.
+# The triple-quoted string above is just a file header comment.
+
+version: "3.8"
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: autoincome-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: autoincome
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme_in_production}
+      POSTGRES_DB: autoincome
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U autoincome -d autoincome"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - autoincome-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: autoincome-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - autoincome-network
+
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: autoincome-app
+    restart: unless-stopped
+    environment:
+      AUTOINCOME_ENV: production
+      AUTOINCOME_SECRET_KEY: ${AUTOINCOME_SECRET_KEY}
+      AUTOINCOME_DB_URL: postgresql+asyncpg://autoincome:${DB_PASSWORD:-changeme_in_production}@db:5432/autoincome
+      AUTOINCOME_REDIS_URL: redis://redis:6379/0
+      AUTOINCOME_CELERY_BROKER_URL: redis://redis:6379/1
+      AUTOINCOME_CELERY_RESULT_BACKEND: redis://redis:6379/2
+      AUTOINCOME_LOG_LEVEL: INFO
+      AUTOINCOME_LOG_FORMAT: json
+      AUTOINCOME_WORKERS: 4
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - autoincome-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  celery-worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: autoincome-worker
+    restart: unless-stopped
+    command: celery -A autoincome.core.tasks worker -l info -c 4
+    environment:
+      AUTOINCOME_ENV: production
+      AUTOINCOME_SECRET_KEY: ${AUTOINCOME_SECRET_KEY}
+      AUTOINCOME_DB_URL: postgresql+asyncpg://autoincome:${DB_PASSWORD:-changeme_in_production}@db:5432/autoincome
+      AUTOINCOME_REDIS_URL: redis://redis:6379/0
+      AUTOINCOME_CELERY_BROKER_URL: redis://redis:6379/1
+      AUTOINCOME_CELERY_RESULT_BACKEND: redis://redis:6379/2
+      AUTOINCOME_LOG_LEVEL: INFO
+      AUTOINCOME_LOG_FORMAT: json
+    depends_on:
+      - db
+      - redis
+    networks:
+      - autoincome-network
+
+  celery-beat:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: autoincome-beat
+    restart: unless-stopped
+    command: celery -A autoincome.core.tasks beat -l info --scheduler redbeat.RedBeatScheduler
+    environment:
+      AUTOINCOME_ENV: production
+      AUTOINCOME_SECRET_KEY: ${AUTOINCOME_SECRET_KEY}
+      AUTOINCOME_DB_URL: postgresql+asyncpg://autoincome:${DB_PASSWORD:-changeme_in_production}@db:5432/autoincome
+      AUTOINCOME_REDIS_URL: redis://redis:6379/0
+      AUTOINCOME_CELERY_BROKER_URL: redis://redis:6379/1
+      AUTOINCOME_CELERY_RESULT_BACKEND: redis://redis:6379/2
+      AUTOINCOME_LOG_LEVEL: INFO
+      AUTOINCOME_LOG_FORMAT: json
+    depends_on:
+      - db
+      - redis
+    networks:
+      - autoincome-network
+
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    container_name: autoincome-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    networks:
+      - autoincome-network
+
+  grafana:
+    image: grafana/grafana:11.0.0
+    container_name: autoincome-grafana
+    restart: unless-stopped
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./docker/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "3000:3000"
+    networks:
+      - autoincome-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  autoincome-network:
+    driver: bridge

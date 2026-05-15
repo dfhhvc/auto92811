@@ -9,9 +9,10 @@ Runs spiders asynchronously in background workers:
 
 from __future__ import annotations
 
-import asyncio
 import time
 from typing import Any
+
+from asgiref.sync import async_to_sync
 
 from autoincome.core.cache import cache
 from autoincome.core.config import get_settings
@@ -32,7 +33,7 @@ settings = get_settings()
     retry_backoff_max=600,
 )
 def run_spider(self, spider_name: str, **kwargs: Any) -> dict[str, Any]:
-    """Execute a spider asynchronously.
+    """Execute a spider asynchronously in a Celery worker.
 
     Args:
         spider_name: Name of the spider to run.
@@ -41,9 +42,7 @@ def run_spider(self, spider_name: str, **kwargs: Any) -> dict[str, Any]:
     Returns:
         Spider execution results with metadata.
     """
-    import asyncio
-
-    return asyncio.run(_run_spider_async(spider_name, kwargs))
+    return async_to_sync(_run_spider_async)(spider_name, kwargs)
 
 
 async def _run_spider_async(spider_name: str, params: dict) -> dict[str, Any]:
@@ -111,9 +110,7 @@ async def _run_spider_async(spider_name: str, params: dict) -> dict[str, Any]:
 @celery_app.task
 def scan_all_spiders() -> dict[str, Any]:
     """Run all enabled spiders sequentially."""
-    import asyncio
-
-    return asyncio.run(_scan_all_async())
+    return async_to_sync(_scan_all_async)()
 
 
 async def _scan_all_async() -> dict[str, Any]:

@@ -12,6 +12,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from asgiref.sync import async_to_sync
 from sqlalchemy import text
 
 from autoincome.core.cache import cache
@@ -25,9 +26,7 @@ logger = get_logger(__name__)
 @celery_app.task
 def cleanup_expired_tokens() -> dict[str, Any]:
     """Remove expired JWT blacklist entries."""
-    import asyncio
-
-    return asyncio.run(_cleanup_tokens_async())
+    return async_to_sync(_cleanup_tokens_async)()
 
 
 async def _cleanup_tokens_async() -> dict[str, Any]:
@@ -54,9 +53,7 @@ async def _cleanup_tokens_async() -> dict[str, Any]:
 @celery_app.task
 def cleanup_old_scan_logs(days: int = 30) -> dict[str, Any]:
     """Archive scan logs older than N days."""
-    import asyncio
-
-    return asyncio.run(_cleanup_logs_async(days))
+    return async_to_sync(_cleanup_logs_async)(days)
 
 
 async def _cleanup_logs_async(days: int) -> dict[str, Any]:
@@ -80,9 +77,7 @@ async def _cleanup_logs_async(days: int) -> dict[str, Any]:
 @celery_app.task
 def refresh_cache_stats() -> dict[str, Any]:
     """Log current cache statistics."""
-    import asyncio
-
-    return asyncio.run(_cache_stats_async())
+    return async_to_sync(_cache_stats_async)()
 
 
 async def _cache_stats_async() -> dict[str, Any]:
@@ -95,9 +90,7 @@ async def _cache_stats_async() -> dict[str, Any]:
 @celery_app.task
 def database_maintenance() -> dict[str, Any]:
     """Run PostgreSQL maintenance (VACUUM ANALYZE)."""
-    import asyncio
-
-    return asyncio.run(_db_maintenance_async())
+    return async_to_sync(_db_maintenance_async)()
 
 
 async def _db_maintenance_async() -> dict[str, Any]:

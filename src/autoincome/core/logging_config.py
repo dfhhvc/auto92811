@@ -14,7 +14,7 @@ import sys
 from typing import Any
 
 import structlog
-from pythonjsonlogger import jsonlogger
+from pythonjsonlogger.json import JsonFormatter
 
 from autoincome.core.config import get_settings
 
@@ -84,7 +84,7 @@ def configure_logging() -> None:
     console_handler.setLevel(getattr(logging, settings.log_level))
 
     if settings.log_format == "json":
-        formatter = jsonlogger.JsonFormatter(
+        formatter = JsonFormatter(
             "%(timestamp)s %(level)s %(name)s %(message)s",
             rename_fields={"levelname": "level", "asctime": "timestamp"},
         )

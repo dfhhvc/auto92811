@@ -108,7 +108,8 @@ async def run_scan(
             v2ex_items = await spider.fetch(limit=20)
             all_items.extend(v2ex_items)
         except Exception:
-            pass  # Graceful fallback
+            import logging
+            logging.getLogger(__name__).exception("v2ex_fetch_failed_in_scan")
 
     # If no real data, use demo data
     if not all_items:

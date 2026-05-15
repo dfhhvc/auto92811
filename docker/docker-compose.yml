@@ -1,0 +1,87 @@
+# AutoIncome v3.0 - Docker Compose
+# One-command deployment: docker compose up -d
+
+version: "3.8"
+
+services:
+  autoincome:
+    image: dfhhvc/autoincome:latest
+    container_name: autoincome
+    restart: unless-stopped
+    
+    ports:
+      - "8080:8080"
+    
+    environment:
+      # Security: All sensitive values via environment (no hardcoding)
+      - AUTOINCOME_ENV=production
+      - AUTOINCOME_SECRET_KEY=${AUTOINCOME_SECRET_KEY:?Secret key required}
+      - AUTOINCOME_DB_PATH=/app/data/autoincome.db
+      - AUTOINCOME_LOG_LEVEL=INFO
+      - AUTOINCOME_CORS_ORIGINS=https://autoincome.dev,https://app.autoincome.dev
+      - AUTOINCOME_RATE_LIMIT=100/minute
+      - AUTOINCOME_ADMIN_EMAIL=${AUTOINCOME_ADMIN_EMAIL:-}
+      - AUTOINCOME_ADMIN_PASSWORD_HASH=${AUTOINCOME_ADMIN_PASSWORD_HASH:-}
+      
+      # Optional: Notification integrations
+      - AUTOINCOME_PUSHOVER_TOKEN=${AUTOINCOME_PUSHOVER_TOKEN:-}
+      - AUTOINCOME_PUSHOVER_USER=${AUTOINCOME_PUSHOVER_USER:-}
+      - AUTOINCOME_WEBHOOK_URL=${AUTOINCOME_WEBHOOK_URL:-}
+    
+    volumes:
+      # Persistent data storage
+      - autoincome-data:/app/data
+    
+    # Security: Read-only root filesystem
+    read_only: true
+    
+    # Security: Drop all capabilities
+    cap_drop:
+      - ALL
+    
+    # Security: Security options
+    security_opt:
+      - no-new-privileges:true
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 128M
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Optional: Reverse proxy with automatic HTTPS
+  caddy:
+    image: caddy:2-alpine
+    container_name: autoincome-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - autoincome
+    profiles:
+      - https
+
+volumes:
+  autoincome-data:
+    driver: local
+  caddy-data:
+    driver: local
+  caddy-config:
+    driver: local

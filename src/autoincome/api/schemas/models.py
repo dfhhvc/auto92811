@@ -2,6 +2,7 @@
 
 All user input is validated for type, length, format, and range.
 No user input reaches the database without passing these schemas.
+URL validation uses urllib.parse to prevent protocol bypass.
 """
 
 from __future__ import annotations
@@ -10,6 +11,8 @@ from datetime import datetime
 from typing import Any, List, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from autoincome.core.security import validate_safe_url
 
 
 class OpportunityCreate(BaseModel):
@@ -48,16 +51,17 @@ class OpportunityCreate(BaseModel):
     @field_validator("source_url")
     @classmethod
     def _validate_url(cls, v: str | None) -> str | None:
-        """Reject dangerous URL protocols to prevent XSS via pseudo-URLs."""
+        """White-hat: use urllib.parse to strictly validate URL protocol.
+
+        Prevents bypasses like:
+        - javascript://example.com/http://
+        - data:text/html,<script>...</script>
+        - file:///etc/passwd
+        """
         if v is None:
             return v
-        v_lower = v.lower().strip()
-        dangerous = ("javascript:", "data:", "vbscript:", "file:", "about:")
-        if any(v_lower.startswith(p) for p in dangerous):
-            raise ValueError("URL contains a dangerous protocol")
-        if not (v_lower.startswith("http://") or v_lower.startswith("https://")):
-            raise ValueError("URL must use HTTP or HTTPS protocol")
-        return v
+        # Use the centralized security utility for strict parsing
+        return validate_safe_url(v)
 
     @field_validator("feedback")
     @classmethod

@@ -3,6 +3,7 @@
 All queries use parameterized statements.
 No raw SQL concatenation with user input.
 Race-condition-safe singleton initialization.
+Includes security audit logging.
 """
 
 from __future__ import annotations
@@ -19,11 +20,9 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
-    create_engine,
-    event,
 )
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import declarative_base
 
 from autoincome.core.config import get_settings
 
@@ -44,7 +43,7 @@ class OpportunityModel(Base):
     expected_income = Column(String(128), nullable=False)
     source = Column(String(128), nullable=False, index=True)
     source_url = Column(String(2048), nullable=True)
-    verified = Column(Integer, default=0)  # 0=false, 1=true
+    verified = Column(Integer, default=0)
     warning = Column(Text, nullable=True)
     tags = Column(JSON, default=list)
     score_total = Column(Float, nullable=False, index=True)
@@ -108,6 +107,29 @@ class TokenBlacklistModel(Base):
     expires_at = Column(DateTime, nullable=False, index=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
+    # Security: prevent accidental leakage of blacklisted tokens in logs
+    def __repr__(self) -> str:
+        return f"TokenBlacklistModel(jti=***{self.jti[-4:]}, expired={self.expires_at})"
+
+
+class SecurityAuditLogModel(Base):
+    """Security event audit log.
+
+    White-hat principle: every security-relevant event is recorded
+    for forensic analysis and intrusion detection.
+    """
+
+    __tablename__ = "security_audit_logs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    event_type = Column(String(64), nullable=False, index=True)
+    user_id = Column(String(32), nullable=True, index=True)
+    client_ip = Column(String(64), nullable=True)
+    user_agent = Column(String(512), nullable=True)
+    details = Column(Text, nullable=True)
+    success = Column(Integer, default=1)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
 
 # ── Engine & Session (thread-safe singleton) ──────────────────────
 
@@ -150,6 +172,9 @@ def get_async_session() -> async_sessionmaker[AsyncSession]:
 
 async def init_db() -> None:
     """Create all tables."""
+    settings = get_settings()
+    # Ensure parent directory exists before creating database
+    settings.db_path.parent.mkdir(parents=True, exist_ok=True)
     async with get_async_engine().begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
@@ -165,3 +190,28 @@ async def get_db() -> AsyncIterator[AsyncSession]:
         raise
     finally:
         await session.close()
+
+
+async def log_security_event(
+    db: AsyncSession,
+    event_type: str,
+    user_id: str | None = None,
+    client_ip: str | None = None,
+    user_agent: str | None = None,
+    details: str | None = None,
+    success: bool = True,
+) -> None:
+    """Write a security audit event.
+
+    White-hat: All auth events, suspicious activity, and policy violations
+    are recorded for forensic analysis.
+    """
+    log = SecurityAuditLogModel(
+        event_type=event_type,
+        user_id=user_id,
+        client_ip=(client_ip or "")[:64],
+        user_agent=(user_agent or "")[:512],
+        details=details,
+        success=int(success),
+    )
+    db.add(log)

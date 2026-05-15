@@ -12,6 +12,8 @@ from typing import Literal
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from autoincome.core.security import validate_secret_key_entropy
+
 
 class Settings(BaseSettings):
     """Application settings with strict validation."""
@@ -40,9 +42,10 @@ class Settings(BaseSettings):
     # ── Security ──────────────────────────────────────────────────
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:8080"])
     rate_limit: str = Field(default="100/minute", description="API rate limit string")
-    max_request_size: int = Field(default=1_048_576, ge=1024, le=100_485_760)  # 1KB-100MB
+    max_request_size: int = Field(default=1_048_576, ge=1024, le=100_485_760)
     jwt_expiry_minutes: int = Field(default=60, ge=5, le=10080)
     password_min_length: int = Field(default=12, ge=8, le=128)
+    max_concurrent_requests: int = Field(default=100, ge=10, le=10000)
     
     # ── Features ──────────────────────────────────────────────────
     enable_registration: bool = True
@@ -68,8 +71,8 @@ class Settings(BaseSettings):
     @field_validator("secret_key")
     @classmethod
     def _validate_secret_key(cls, v: str) -> str:
-        if len(v) < 32:
-            raise ValueError("SECRET_KEY must be at least 32 characters")
+        # White-hat: entropy check prevents weak keys like 'aaaaaaaa...'
+        validate_secret_key_entropy(v, min_bits=3.5)
         return v
     
     @field_validator("cors_origins", mode="before")
@@ -81,12 +84,22 @@ class Settings(BaseSettings):
     
     @field_validator("db_path")
     @classmethod
-    def _ensure_parent_dir(cls, v: Path) -> Path:
-        v.parent.mkdir(parents=True, exist_ok=True)
+    def _validate_db_path(cls, v: Path) -> Path:
+        # White-hat: validate path but do NOT create directories at validation time
+        # Directory creation belongs in lifespan/startup, not in config validation
+        if not v.name or v.name in (".", ".."):
+            raise ValueError("Invalid database path")
         return v
+    
+    # Security: hide sensitive fields in repr
+    def __repr__(self) -> str:
+        return (
+            f"Settings(env={self.env}, debug={self.debug}, "
+            f"host={self.host}, port={self.port})"
+        )
 
 
-# Global singleton (lazy-loaded in production, replaced in tests)
+# Global singleton
 _settings: Settings | None = None
 
 

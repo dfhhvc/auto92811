@@ -1,11 +1,12 @@
 """Authentication API with secure password handling and JWT.
 
-Security mitigations:
-- Rate limiting on all auth endpoints (5/min register, 10/min login, 20/min logout)
+White-hat security layers:
+- Rate limiting on all auth endpoints
 - Timing-safe password verification (always runs bcrypt)
-- JWT with unique JTI for revocation
+- JWT with unique JTI for revocation (minimal payload: sub only)
 - Token blacklist on logout
 - Identical error messages to prevent user enumeration
+- Security audit logging for every auth event
 """
 
 from __future__ import annotations
@@ -19,7 +20,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from autoincome.api.schemas.models import TokenResponse, UserCreate, UserLogin, UserProfile
 from autoincome.core.config import get_settings
-from autoincome.core.database import TokenBlacklistModel, UserModel, get_db
+from autoincome.core.database import (
+    TokenBlacklistModel,
+    UserModel,
+    get_db,
+    log_security_event,
+)
 from autoincome.core.rate_limit import limiter
 from autoincome.core.security import (
     create_access_token,
@@ -32,9 +38,25 @@ from autoincome.core.security import (
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 # Pre-computed bcrypt hash for timing-attack mitigation.
-# This is a REAL hash of a random password. Verifying against it
-# takes the same time as verifying a real user password.
 _DUMMY_HASH = hash_password("timing-attack-mitigation-dummy-password-" + generate_id())
+
+
+def _get_client_ip(request: Request) -> str:
+    """Extract real client IP, respecting X-Forwarded-For behind proxies."""
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    real_ip = request.headers.get("X-Real-IP")
+    if real_ip:
+        return real_ip.strip()
+    if request.client:
+        return request.client.host
+    return "unknown"
+
+
+def _get_user_agent(request: Request) -> str:
+    """Extract User-Agent header."""
+    return request.headers.get("User-Agent", "")
 
 
 async def get_current_user(
@@ -107,7 +129,15 @@ async def register(
         select(UserModel).where(UserModel.email == payload.email)
     )
     if existing.scalar_one_or_none():
-        # Security: vague message to prevent email enumeration
+        # White-hat: audit log the failed attempt (without leaking to client)
+        await log_security_event(
+            db=db,
+            event_type="registration_failed_duplicate",
+            client_ip=_get_client_ip(request),
+            user_agent=_get_user_agent(request),
+            details=f"Attempted registration with existing email domain: {payload.email.split('@')[-1]}",
+            success=False,
+        )
         raise HTTPException(status_code=409, detail="Registration failed")
 
     user = UserModel(
@@ -122,10 +152,22 @@ async def register(
     await db.flush()
 
     token = create_access_token(
-        {"sub": user.id, "email": user.email},
+        {"sub": user.id},
         settings.secret_key,
         timedelta(minutes=settings.jwt_expiry_minutes),
     )
+
+    # White-hat: audit log successful registration
+    await log_security_event(
+        db=db,
+        event_type="registration_success",
+        user_id=user.id,
+        client_ip=_get_client_ip(request),
+        user_agent=_get_user_agent(request),
+        details="User registered successfully",
+        success=True,
+    )
+
     return TokenResponse(
         access_token=token,
         expires_in=settings.jwt_expiry_minutes * 60,
@@ -149,8 +191,20 @@ async def login(
     target_hash = user.password_hash if user else _DUMMY_HASH
     valid = verify_password(payload.password, target_hash)
 
+    client_ip = _get_client_ip(request)
+    user_agent = _get_user_agent(request)
+
     if not user or not valid:
-        # Security: identical error message regardless of whether user exists
+        # White-hat: audit log failed login attempt for intrusion detection
+        await log_security_event(
+            db=db,
+            event_type="login_failed",
+            user_id=user.id if user else None,
+            client_ip=client_ip,
+            user_agent=user_agent,
+            details="Invalid credentials",
+            success=False,
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
@@ -158,10 +212,22 @@ async def login(
 
     settings = get_settings()
     token = create_access_token(
-        {"sub": user.id, "email": user.email},
+        {"sub": user.id},
         settings.secret_key,
         timedelta(minutes=settings.jwt_expiry_minutes),
     )
+
+    # White-hat: audit log successful login
+    await log_security_event(
+        db=db,
+        event_type="login_success",
+        user_id=user.id,
+        client_ip=client_ip,
+        user_agent=user_agent,
+        details="User authenticated successfully",
+        success=True,
+    )
+
     return TokenResponse(
         access_token=token,
         expires_in=settings.jwt_expiry_minutes * 60,
@@ -188,6 +254,17 @@ async def logout(
         )
         db.add(bl)
         await db.flush()
+
+    # White-hat: audit log logout
+    await log_security_event(
+        db=db,
+        event_type="logout",
+        user_id=user.id,
+        client_ip=_get_client_ip(request),
+        user_agent=_get_user_agent(request),
+        details="User logged out",
+        success=True,
+    )
 
     return {"detail": "Successfully logged out"}
 

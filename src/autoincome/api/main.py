@@ -1,18 +1,22 @@
 """FastAPI application with comprehensive security middleware.
 
-Security features:
+White-hat defense-in-depth:
 - Rate limiting (slowapi)
 - CORS with explicit allowlist (credentials + wildcard forbidden)
 - Security headers (HSTS, CSP, X-Frame-Options)
 - Request body size limits (DoS prevention)
+- Concurrent request limiting (Slowloris prevention)
+- Request ID tracing (forensic correlation)
 - Structured logging (no sensitive data)
 - Input validation via Pydantic
 """
 
 from __future__ import annotations
 
+import asyncio
 import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,9 +29,14 @@ from autoincome.api.routers import auth, config as config_router, health, opport
 from autoincome.core.config import get_settings
 from autoincome.core.database import init_db
 from autoincome.core.rate_limit import limiter
+from autoincome.core.security import generate_secure_token
 
 _settings = get_settings()
 _start_time = time.time()
+
+# White-hat: Semaphore for global concurrent request limiting
+# Prevents Slowloris / connection exhaustion attacks
+_concurrent_limiter = asyncio.Semaphore(_settings.max_concurrent_requests)
 
 
 @asynccontextmanager
@@ -64,7 +73,6 @@ async def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONR
 # CORS: explicit allowlist only. Never allow wildcard with credentials.
 _cors_origins = list(_settings.cors_origins)
 if "*" in _cors_origins:
-    # Security: wildcard + credentials is forbidden by CORS spec
     _cors_origins = [o for o in _cors_origins if o != "*"]
     if not _cors_origins:
         _cors_origins = ["http://localhost:8080", "http://127.0.0.1:8080"]
@@ -88,6 +96,34 @@ app.add_middleware(
 
 
 @app.middleware("http")
+async def _request_id(request: Request, call_next):
+    """White-hat: Add X-Request-ID for forensic request correlation.
+
+    Every request gets a unique traceable ID for security audit logs.
+    """
+    request_id = request.headers.get("X-Request-ID")
+    if not request_id:
+        request_id = generate_secure_token(16)
+    request.state.request_id = request_id
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    return response
+
+
+@app.middleware("http")
+async def _concurrent_limit(request: Request, call_next):
+    """White-hat: Limit concurrent requests to prevent connection exhaustion."""
+    if _concurrent_limiter.locked():
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "Server is at capacity. Please try again later."},
+            headers={"Retry-After": "10"},
+        )
+    async with _concurrent_limiter:
+        return await call_next(request)
+
+
+@app.middleware("http")
 async def _security_headers(request: Request, call_next):
     """Add security headers to all responses."""
     response = await call_next(request)
@@ -96,7 +132,6 @@ async def _security_headers(request: Request, call_next):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
 
-    # Content-Security-Policy based on response type
     content_type = response.headers.get("content-type", "")
     if content_type.startswith("text/html"):
         response.headers["Content-Security-Policy"] = (
@@ -149,7 +184,7 @@ async def _request_logging(request: Request, call_next):
     start = time.time()
     response = await call_next(request)
     duration = time.time() - start
-    # Structured log: method, path, status, duration
+    # White-hat: log request_id for forensic correlation
     # NO query params, NO body, NO headers with secrets
     return response
 
@@ -165,10 +200,15 @@ app.include_router(config_router.router, prefix="/api/v1")
 
 # ── Web UI ────────────────────────────────────────────────────────
 
+# White-hat: Resolve static file path relative to this module,
+# preventing path traversal if path were ever user-controlled.
+_WEB_UI_PATH = Path(__file__).parent.parent / "web" / "index.html"
+
+
 @app.get("/", response_class=HTMLResponse)
 async def _root():
     """Serve the main web application."""
-    with open("src/autoincome/web/index.html", "r", encoding="utf-8") as f:
+    with _WEB_UI_PATH.open("r", encoding="utf-8") as f:
         return HTMLResponse(content=f.read())
 
 

@@ -6,52 +6,40 @@ Implements OWASP-compliant security primitives:
 - Input sanitization
 - Secure random generation
 - Rate limiting helpers
+- Secret key entropy validation
+- URL protocol validation
 """
 
 from __future__ import annotations
 
 import hashlib
 import hmac
+import math
 import re
 import secrets
 import string
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from urllib.parse import urlparse
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 # ── Password Hashing ──────────────────────────────────────────────
-# Use bcrypt with auto-upgrading (fallback to Argon2id if available)
 _pwd_context = CryptContext(
     schemes=["bcrypt", "argon2id"],
     deprecated="auto",
-    bcrypt__rounds=12,  # OWASP recommended minimum
+    bcrypt__rounds=12,
 )
 
 
 def hash_password(plain: str) -> str:
-    """Hash a plaintext password using bcrypt.
-
-    Args:
-        plain: Raw password string.
-
-    Returns:
-        Bcrypt hash string.
-    """
+    """Hash a plaintext password using bcrypt."""
     return _pwd_context.hash(plain)
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    """Verify a plaintext password against a hash.
-
-    Args:
-        plain: Raw password to verify.
-        hashed: Stored bcrypt hash.
-
-    Returns:
-        True if password matches.
-    """
+    """Verify a plaintext password against a hash."""
     return _pwd_context.verify(plain, hashed)
 
 
@@ -64,35 +52,24 @@ def create_access_token(
 ) -> str:
     """Create a signed JWT access token with unique JTI for revocation.
 
-    Args:
-        data: Payload dictionary (must not contain sensitive data).
-        secret_key: HS256 secret key.
-        expires_delta: Token lifetime. Defaults to 15 minutes.
-
-    Returns:
-        Encoded JWT string.
+    White-hat principle: minimal payload. Only sub (user ID) is stored.
+    No email, no roles, no personal data in the token.
     """
-    to_encode = data.copy()
+    to_encode = {
+        "sub": data.get("sub"),
+    }
     expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=15))
     to_encode.update({
         "exp": expire,
         "iat": datetime.now(timezone.utc),
         "type": "access",
-        "jti": generate_id(),  # unique token ID for blacklist revocation
+        "jti": generate_id(),
     })
     return jwt.encode(to_encode, secret_key, algorithm="HS256")
 
 
 def decode_access_token(token: str, secret_key: str) -> dict[str, Any] | None:
-    """Decode and validate a JWT access token.
-
-    Args:
-        token: JWT string.
-        secret_key: HS256 secret key.
-
-    Returns:
-        Decoded payload dict, or None if invalid/expired.
-    """
+    """Decode and validate a JWT access token."""
     try:
         payload = jwt.decode(token, secret_key, algorithms=["HS256"])
         if payload.get("type") != "access":
@@ -100,6 +77,76 @@ def decode_access_token(token: str, secret_key: str) -> dict[str, Any] | None:
         return payload
     except JWTError:
         return None
+
+
+# ── Secret Key Entropy Validation ─────────────────────────────────
+
+def validate_secret_key_entropy(key: str, min_bits: float = 4.0) -> None:
+    """Validate that a secret key has sufficient entropy.
+
+    White-hat defense: reject low-entropy keys like 'aaaaaaaa...' even
+    if they meet length requirements. Prevents brute-force of JWT signing key.
+
+    Args:
+        key: The secret key to validate.
+        min_bits: Minimum Shannon entropy per character.
+
+    Raises:
+        ValueError: If entropy is too low.
+    """
+    if len(key) < 32:
+        raise ValueError("Secret key must be at least 32 characters")
+
+    # Shannon entropy calculation
+    if len(key) == 0:
+        raise ValueError("Secret key cannot be empty")
+
+    freq = {}
+    for char in key:
+        freq[char] = freq.get(char, 0) + 1
+
+    entropy = 0.0
+    length = len(key)
+    for count in freq.values():
+        p = count / length
+        entropy -= p * math.log2(p)
+
+    if entropy < min_bits:
+        raise ValueError(
+            f"Secret key entropy too low ({entropy:.2f} bits/char). "
+            f"Use a cryptographically random key with at least {min_bits} bits/char. "
+            f"Generate with: openssl rand -hex 32"
+        )
+
+
+# ── URL Protocol Validation ───────────────────────────────────────
+
+def validate_safe_url(url: str | None) -> str | None:
+    """Strictly validate URL protocol using urllib.parse.
+
+    White-hat defense: urlparse prevents bypass techniques like
+    javascript://example.com/http:// or data:text/html,... that
+    simple startswith checks miss.
+    """
+    if url is None:
+        return None
+    url = url.strip()
+    if not url:
+        return None
+
+    parsed = urlparse(url)
+    scheme = parsed.scheme.lower()
+
+    if scheme not in ("http", "https"):
+        raise ValueError(
+            f"URL must use HTTP or HTTPS protocol, got: {scheme or 'empty'}"
+        )
+
+    # Additional check: reject URLs with embedded credentials
+    if parsed.username or parsed.password:
+        raise ValueError("URL must not contain embedded credentials")
+
+    return url
 
 
 # ── Input Validation & Sanitization ───────────────────────────────
@@ -110,18 +157,7 @@ _PATH_TRAVERSAL = re.compile(r"\.{2,}[/\\]|")  # noqa: W605
 
 
 def sanitize_string(value: str, max_len: int = _MAX_STRING_LEN) -> str:
-    """Sanitize user input string to prevent XSS/injection.
-
-    Args:
-        value: Raw user input.
-        max_len: Maximum allowed length.
-
-    Returns:
-        Sanitized string.
-
-    Raises:
-        ValueError: If input contains dangerous patterns or exceeds length.
-    """
+    """Sanitize user input string to prevent XSS/injection."""
     if not isinstance(value, str):
         raise ValueError("Input must be a string")
     if len(value) > max_len:
@@ -132,22 +168,11 @@ def sanitize_string(value: str, max_len: int = _MAX_STRING_LEN) -> str:
 
 
 def safe_filename(name: str) -> str:
-    """Sanitize a filename to prevent path traversal attacks.
-
-    Args:
-        name: Proposed filename.
-
-    Returns:
-        Safe filename.
-
-    Raises:
-        ValueError: If filename is unsafe.
-    """
+    """Sanitize a filename to prevent path traversal attacks."""
     if not name or len(name) > 255:
         raise ValueError("Invalid filename length")
     if _PATH_TRAVERSAL.search(name):
         raise ValueError("Path traversal detected")
-    # Allow only safe characters
     safe = re.sub(r"[^a-zA-Z0-9_.-]", "_", name)
     if safe in {"", ".", ".."}:
         raise ValueError("Invalid filename")
@@ -157,14 +182,7 @@ def safe_filename(name: str) -> str:
 # ── Cryptographically Secure Random ───────────────────────────────
 
 def generate_secure_token(length: int = 32) -> str:
-    """Generate a cryptographically secure random token.
-
-    Args:
-        length: Token length in bytes (result hex string is 2x).
-
-    Returns:
-        Hex-encoded secure random string.
-    """
+    """Generate a cryptographically secure random token."""
     return secrets.token_hex(length)
 
 
@@ -176,13 +194,5 @@ def generate_id() -> str:
 # ── Secure Comparison ─────────────────────────────────────────────
 
 def secure_compare(a: str, b: str) -> bool:
-    """Timing-safe string comparison to prevent timing attacks.
-
-    Args:
-        a: First string.
-        b: Second string.
-
-    Returns:
-        True if strings are equal.
-    """
+    """Timing-safe string comparison to prevent timing attacks."""
     return hmac.compare_digest(a.encode(), b.encode())

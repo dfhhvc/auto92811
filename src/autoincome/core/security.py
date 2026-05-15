@@ -22,25 +22,24 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlparse
 
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 # ── Password Hashing ──────────────────────────────────────────────
-_pwd_context = CryptContext(
-    schemes=["bcrypt", "argon2id"],
-    deprecated="auto",
-    bcrypt__rounds=12,
-)
-
 
 def hash_password(plain: str) -> str:
-    """Hash a plaintext password using bcrypt."""
-    return _pwd_context.hash(plain)
+    """Hash a plaintext password using bcrypt.
+
+    bcrypt has a 72-byte limit on passwords.
+    """
+    plain_bytes = plain.encode("utf-8")[:72]
+    return bcrypt.hashpw(plain_bytes, bcrypt.gensalt(rounds=12)).decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
     """Verify a plaintext password against a hash."""
-    return _pwd_context.verify(plain, hashed)
+    plain_bytes = plain.encode("utf-8")[:72]
+    return bcrypt.checkpw(plain_bytes, hashed.encode("utf-8"))
 
 
 # ── JWT Tokens ────────────────────────────────────────────────────

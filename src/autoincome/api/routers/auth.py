@@ -38,7 +38,7 @@ from autoincome.core.security import (
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 # Pre-computed bcrypt hash for timing-attack mitigation.
-_DUMMY_HASH = hash_password("timing-attack-mitigation-dummy-password-" + generate_id())
+_DUMMY_HASH = hash_password("dummy-" + generate_id()[:16])
 
 
 def _get_client_ip(request: Request) -> str:

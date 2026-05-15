@@ -51,4 +51,13 @@ registry.register("github", GitHubSpider)
 registry.register("jike", JikeSpider)
 registry.register("rss", RSSSpider)
 
-__all__ = ["registry", "BaseSpider"]
+# Backwards-compatible registry dict
+ALL_SPIDERS = {
+    "v2ex": V2EXSpider,
+    "zhihu": ZhihuSpider,
+    "github": GitHubSpider,
+    "jike": JikeSpider,
+    "rss": RSSSpider,
+}
+
+__all__ = ["registry", "BaseSpider", "ALL_SPIDERS"]

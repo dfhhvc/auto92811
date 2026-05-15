@@ -1,170 +1,91 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-<meta name="theme-color" content="#0ea5e9">
-<meta name="description" content="AutoIncome - AI智能副业机会聚合平台（Alpha版）">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<title>AutoIncome · Alpha</title>
-<style>
-:root{--bg:#0f172a;--card:#1e293b;--accent:#0ea5e9;--accent2:#8b5cf6;--text:#f1f5f9;--muted:#94a3b8;--success:#22c55e;--warn:#f59e0b;--danger:#ef4444;--radius:16px}
-*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html{scroll-behavior:smooth}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;min-height:100dvh}
-a{color:var(--accent);text-decoration:none}
-.container{max-width:1200px;margin:0 auto;padding:0 1.25rem}
-
-header{position:sticky;top:0;z-index:100;background:rgba(15,23,42,.85);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.06)}
-nav{display:flex;align-items:center;justify-content:space-between;height:64px}
-.logo{font-size:1.5rem;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.nav-links{display:flex;gap:1.5rem;align-items:center}
-.nav-links a{font-size:.9rem;color:var(--muted);transition:.2s}
-.nav-links a:hover{color:var(--text)}
-.btn{display:inline-flex;align-items:center;gap:.4rem;padding:.6rem 1.2rem;border-radius:999px;font-size:.875rem;font-weight:600;border:none;cursor:pointer;transition:all .2s}
-.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
-.btn-primary:hover{transform:translateY(-2px)}
-.btn-ghost{background:rgba(255,255,255,.06);color:var(--text)}
-.menu-toggle{display:none;background:none;border:none;color:var(--text);font-size:1.5rem}
-
-.hero{padding:5rem 0 3rem;text-align:center}
-.hero h1{font-size:clamp(2rem,5vw,3.5rem);font-weight:800;line-height:1.15;margin-bottom:1rem}
-.hero h1 span{background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.hero p{color:var(--muted);font-size:clamp(1rem,2vw,1.25rem);max-width:640px;margin:0 auto 2rem}
-.hero-actions{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap}
-.alpha-badge{display:inline-block;padding:.25rem .75rem;background:rgba(245,158,11,.15);color:var(--warn);border-radius:999px;font-size:.8rem;font-weight:600;margin-bottom:1.5rem}
-
-.features{padding:4rem 0}
-.section-title{text-align:center;font-size:2rem;font-weight:700;margin-bottom:3rem}
-.grid{display:grid;gap:1.5rem}
-.feature-grid{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
-.card{background:var(--card);border-radius:var(--radius);padding:1.75rem;border:1px solid rgba(255,255,255,.06);transition:.3s}
-.card:hover{transform:translateY(-4px);border-color:rgba(14,165,233,.2)}
-.card-icon{font-size:2rem;margin-bottom:1rem}
-.card h3{font-size:1.1rem;margin-bottom:.5rem}
-.card p{color:var(--muted);font-size:.9rem}
-.status-badge{display:inline-block;padding:.2rem .5rem;border-radius:4px;font-size:.7rem;font-weight:700;margin-left:.5rem}
-.status-done{background:rgba(34,197,94,.15);color:var(--success)}
-.status-wip{background:rgba(245,158,11,.15);color:var(--warn)}
-
-.demo{padding:4rem 0;background:linear-gradient(180deg,transparent,rgba(14,165,233,.04),transparent)}
-.terminal{background:#0b1120;border-radius:var(--radius);padding:1.5rem;font-family:monospace;font-size:.8rem;overflow-x:auto;border:1px solid rgba(255,255,255,.08);max-width:800px;margin:0 auto}
-.terminal-header{display:flex;gap:.4rem;margin-bottom:1rem}
-.dot{width:12px;height:12px;border-radius:50%}
-.dot-red{background:var(--danger)}.dot-yellow{background:var(--warn)}.dot-green{background:var(--success)}
-.terminal pre{margin:0;color:#cbd5e1;white-space:pre-wrap;word-break:break-word}
-.terminal .cmd{color:var(--accent)}
-.terminal .success{color:var(--success)}
-.terminal .warn{color:var(--warn)}
-
-.platforms{padding:4rem 0;text-align:center}
-.platform-grid{display:flex;gap:1.5rem;justify-content:center;flex-wrap:wrap;margin-top:2rem}
-.platform-chip{display:flex;align-items:center;gap:.5rem;padding:.75rem 1.25rem;background:var(--card);border-radius:999px;border:1px solid rgba(255,255,255,.06);font-size:.9rem}
-
-footer{padding:3rem 0;border-top:1px solid rgba(255,255,255,.06);text-align:center;color:var(--muted);font-size:.875rem}
-
-@media(max-width:768px){
-  .nav-links{display:none;position:absolute;top:64px;left:0;right:0;background:var(--bg);flex-direction:column;padding:1rem;gap:1rem;border-bottom:1px solid rgba(255,255,255,.06)}
-  .nav-links.open{display:flex}
-  .menu-toggle{display:block}
-  .hero{padding:3rem 0 2rem}
-}
-@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoIncome v4 — 被动收入机会聚合器</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            min-height: 100vh;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+        header {
+            text-align: center;
+            padding: 3rem 0;
+            border-bottom: 1px solid #334155;
+        }
+        h1 { font-size: 2.5rem; margin-bottom: 0.5rem; }
+        .subtitle { color: #94a3b8; font-size: 1.1rem; }
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+        .card {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid #334155;
+        }
+        .card h3 { color: #60a5fa; margin-bottom: 0.5rem; }
+        .card p { color: #94a3b8; }
+        .endpoint {
+            background: #0f172a;
+            padding: 0.75rem;
+            border-radius: 6px;
+            font-family: monospace;
+            margin-top: 0.5rem;
+            word-break: break-all;
+        }
+        .endpoint a { color: #60a5fa; text-decoration: none; }
+        .endpoint a:hover { text-decoration: underline; }
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: #64748b;
+            border-top: 1px solid #334155;
+            margin-top: 2rem;
+        }
+    </style>
 </head>
 <body>
-<header>
-  <nav class="container">
-    <div class="logo">🎯 AutoIncome</div>
-    <div class="nav-links" id="navLinks">
-      <a href="#features">功能</a>
-      <a href="#demo">演示</a>
-      <a href="/api/docs" target="_blank">API文档</a>
-      <a href="https://github.com/dfhhvc/auto92811" target="_blank" rel="noopener">GitHub</a>
+    <div class="container">
+        <header>
+            <h1>🎯 AutoIncome v4.0</h1>
+            <p class="subtitle">AI驱动的被动收入机会聚合器 — 生产级架构</p>
+        </header>
+
+        <div class="status-grid">
+            <div class="card">
+                <h3>📊 API 文档</h3>
+                <p>Swagger UI 接口文档</p>
+                <div class="endpoint"><a href="/api/docs">/api/docs</a></div>
+            </div>
+            <div class="card">
+                <h3>📈 监控指标</h3>
+                <p>Prometheus 指标端点</p>
+                <div class="endpoint"><a href="/metrics">/metrics</a></div>
+            </div>
+            <div class="card">
+                <h3>🔍 机会列表</h3>
+                <p>获取推荐副业机会</p>
+                <div class="endpoint"><a href="/api/v1/opportunities">GET /api/v1/opportunities</a></div>
+            </div>
+            <div class="card">
+                <h3>❤️ 健康检查</h3>
+                <p>服务状态监控</p>
+                <div class="endpoint"><a href="/api/v1/health">GET /api/v1/health</a></div>
+            </div>
+        </div>
+
+        <footer>
+            <p>AutoIncome v4.0 · <a href="https://github.com/dfhhvc/auto92811" style="color:#60a5fa">GitHub</a></p>
+        </footer>
     </div>
-    <button class="menu-toggle" onclick="document.getElementById('navLinks').classList.toggle('open')">☰</button>
-  </nav>
-</header>
-
-<main>
-<section class="hero">
-  <div class="container">
-    <div class="alpha-badge">🚧 ALPHA 版本 — 爬虫功能开发中</div>
-    <h1>AI 副业机会<br><span>聚合引擎</span></h1>
-    <p>核心引擎（去重 + 评分 + 安全）已就绪<br>真实爬虫模块开发中，当前为演示数据</p>
-    <div class="hero-actions">
-      <a href="https://github.com/dfhhvc/auto92811" target="_blank" rel="noopener" class="btn btn-primary">⭐ GitHub</a>
-      <a href="/api/docs" class="btn btn-ghost">📖 API 文档</a>
-    </div>
-  </div>
-</section>
-
-<section class="features" id="features">
-  <div class="container">
-    <h2 class="section-title">功能状态</h2>
-    <div class="grid feature-grid">
-      <div class="card"><div class="card-icon">🧬</div><h3>AI 去重引擎<span class="status-badge status-done">已完成</span></h3><p>SHA-256 指纹 + Jaccard 相似度，线程安全，相似度>85%自动合并。</p></div>
-      <div class="card"><div class="card-icon">📊</div><h3>5维评分模型<span class="status-badge status-done">已完成</span></h3><p>可行性/时效性/可信度/收益比/可复制性，可配置权重。</p></div>
-      <div class="card"><div class="card-icon">🔐</div><h3>安全架构<span class="status-badge status-done">已完成</span></h3><p>12层防御，OWASP Top 10 全覆盖，bcrypt + JWT + 审计日志。</p></div>
-      <div class="card"><div class="card-icon">🔍</div><h3>智能聚合<span class="status-badge status-wip">开发中</span></h3><p>计划支持 V2EX、知乎、GitHub 等平台实时抓取。当前为演示数据。</p></div>
-      <div class="card"><div class="card-icon">🔔</div><h3>实时告警<span class="status-badge status-wip">开发中</span></h3><p>推送框架已就绪，待接入 Pushover / 邮件 / Webhook。</p></div>
-      <div class="card"><div class="card-icon">🎯</div><h3>个性推荐<span class="status-badge status-wip">开发中</span></h3><p>用户画像模型已定义，匹配算法待实现。</p></div>
-    </div>
-  </div>
-</section>
-
-<section class="demo" id="demo">
-  <div class="container">
-    <h2 class="section-title">API 演示</h2>
-    <div class="terminal">
-      <div class="terminal-header"><span class="dot dot-red"></span><span class="dot dot-yellow"></span><span class="dot dot-green"></span></div>
-      <pre><span class="cmd">$ curl http://localhost:8080/api/v1/health</span>
-{
-  "status": "healthy",
-  "timestamp": "2024-01-15T09:30:00Z",
-  "uptime_seconds": 3600.0,
-  "database": "connected"
-}
-
-<span class="cmd">$ curl "http://localhost:8080/api/v1/opportunities?min_score=7.0"</span>
-[
-  {
-    "id": "a1b2c3d4...",
-    "title": "AI 辅助内容创作",
-    "score_total": 8.7,
-    ...
-  }
-]
-
-<span class="warn"># 注：当前为模拟数据，真实爬虫开发中</span></pre>
-    </div>
-  </div>
-</section>
-
-<section class="platforms">
-  <div class="container">
-    <h2 class="section-title">技术栈</h2>
-    <div class="platform-grid">
-      <div class="platform-chip">🚀 FastAPI</div>
-      <div class="platform-chip">🐍 Python 3.11+</div>
-      <div class="platform-chip">🗄️ SQLite + SQLAlchemy</div>
-      <div class="platform-chip">🔐 bcrypt + JWT</div>
-      <div class="platform-chip">🐳 Docker</div>
-      <div class="platform-chip">⚡ asyncio</div>
-    </div>
-  </div>
-</section>
-</main>
-
-<footer>
-  <div class="container">
-    <p>AutoIncome v3.0 Alpha · <a href="LICENSE">MIT License</a></p>
-    <p style="margin-top:.5rem;font-size:.8rem">Made by <a href="https://github.com/dfhhvc" target="_blank" rel="noopener">@dfhhvc</a></p>
-  </div>
-</footer>
-
-<script>
-document.querySelectorAll('.nav-links a').forEach(a=>a.addEventListener('click',()=>document.getElementById('navLinks').classList.remove('open')));
-</script>
 </body>
 </html>

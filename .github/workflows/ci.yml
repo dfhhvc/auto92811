@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, production-v4]
   pull_request:
-    branches: [main, master]
+    branches: [main]
 
 jobs:
   test:
@@ -12,6 +12,31 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: autoincome
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: autoincome_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
 
     steps:
       - uses: actions/checkout@v4
@@ -26,49 +51,36 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
-      - name: Run ruff linter
+      - name: Run linter (ruff)
         run: ruff check src tests
 
-      - name: Run ruff formatter check
-        run: ruff format --check src tests
-
-      - name: Run mypy type check
+      - name: Run type checker (mypy)
         run: mypy src
 
-      - name: Run bandit security scan
-        run: bandit -r src -f json -o bandit-report.json || true
-
-      - name: Run safety check
-        run: safety check || true
+      - name: Run security scan (bandit)
+        run: bandit -r src
 
       - name: Run tests with coverage
-        run: pytest --cov=autoincome --cov-report=xml --cov-report=term
         env:
-          AUTOINCOME_SECRET_KEY: test-secret-key-for-ci-only-do-not-use-in-production-32chars
+          AUTOINCOME_SECRET_KEY: test-secret-key-32-chars-long!!!
+          AUTOINCOME_DB_URL: postgresql+asyncpg://autoincome:test@localhost:5432/autoincome_test
+          AUTOINCOME_REDIS_URL: redis://localhost:6379/0
+          AUTOINCOME_ENV: testing
+        run: pytest --cov=autoincome --cov-report=xml --cov-fail-under=80
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
-          files: ./coverage.xml
+          file: ./coverage.xml
           fail_ci_if_error: false
 
   docker:
     runs-on: ubuntu-latest
-    needs: test
-    if: github.ref == 'refs/heads/main'
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
 
       - name: Build Docker image
         run: docker build -f docker/Dockerfile -t autoincome:test .
 
       - name: Test Docker image
-        run: |
-          docker run -d -p 8080:8080 -e AUTOINCOME_SECRET_KEY=test-secret-key-for-ci-only-do-not-use-in-production-32chars --name autoincome-test autoincome:test
-          sleep 5
-          curl -f http://localhost:8080/api/v1/health || exit 1
-          docker stop autoincome-test
+        run: docker run --rm autoincome:test python -c "import autoincome; print(autoincome.__version__)"

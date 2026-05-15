@@ -5,18 +5,22 @@ Uses Zhihu public API (no auth required for hot lists).
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+import logging
+import re
+from typing import Any
 
 import httpx
 
 from autoincome.core.spiders.base import BaseSpider
 
+logger = logging.getLogger(__name__)
+
 
 class ZhihuSpider(BaseSpider):
-    """Fetch side hustle related content from Zhihu."""
+    """Fetch side-hustle-related content from Zhihu."""
 
     name = "zhihu"
-    base_url = "https://www.zhihu.com/api/v3"
+    base_url = "https://www.zhihu.com/api"
 
     SEARCH_QUERIES = [
         "副业赚钱",
@@ -26,31 +30,58 @@ class ZhihuSpider(BaseSpider):
         "AI赚钱",
     ]
 
-    async def fetch(self, limit: int = 20, **kwargs: Any) -> List[Dict[str, Any]]:
+    async def fetch(self, limit: int = 20, **kwargs: Any) -> list[dict[str, Any]]:
         """Fetch hot search results related to side hustles."""
-        opportunities: List[Dict[str, Any]] = []
+        opportunities: list[dict[str, Any]] = []
 
         async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-            # Fetch hot list
             try:
                 hot_items = await self._fetch_hot_list(client, limit)
                 opportunities.extend(hot_items)
+            except httpx.HTTPStatusError as exc:
+                logger.warning(
+                    "zhihu_hot_list_http_error",
+                    status=exc.response.status_code,
+                )
+            except httpx.RequestError as exc:
+                logger.warning(
+                    "zhihu_hot_list_request_error",
+                    error=str(exc),
+                )
             except Exception:
-                pass
+                logger.exception("zhihu_hot_list_unexpected_error")
 
-            # Fetch search results for each query
             for query in self.SEARCH_QUERIES:
                 try:
-                    search_items = await self._fetch_search(client, query, limit // 3)
+                    search_items = await self._fetch_search(
+                        client, query, limit // 3
+                    )
                     opportunities.extend(search_items)
+                except httpx.HTTPStatusError as exc:
+                    logger.warning(
+                        "zhihu_search_http_error",
+                        query=query,
+                        status=exc.response.status_code,
+                    )
+                except httpx.RequestError as exc:
+                    logger.warning(
+                        "zhihu_search_request_error",
+                        query=query,
+                        error=str(exc),
+                    )
                 except Exception:
-                    continue
+                    logger.exception(
+                        "zhihu_search_unexpected_error",
+                        query=query,
+                    )
 
         return opportunities
 
     async def _fetch_hot_list(
-        self, client: httpx.AsyncClient, limit: int
-    ) -> List[Dict[str, Any]]:
+        self,
+        client: httpx.AsyncClient,
+        limit: int,
+    ) -> list[dict[str, Any]]:
         """Fetch Zhihu hot list."""
         url = "https://www.zhihu.com/api/v3/feed/topstory/hot-lists/total"
         headers = {
@@ -69,7 +100,6 @@ class ZhihuSpider(BaseSpider):
             title = target.get("title", "")
             excerpt = target.get("excerpt", "")
 
-            # Filter for side hustle related content
             if not self._is_side_hustle_related(title):
                 continue
 
@@ -97,8 +127,11 @@ class ZhihuSpider(BaseSpider):
         return opportunities
 
     async def _fetch_search(
-        self, client: httpx.AsyncClient, query: str, limit: int
-    ) -> List[Dict[str, Any]]:
+        self,
+        client: httpx.AsyncClient,
+        query: str,
+        limit: int,
+    ) -> list[dict[str, Any]]:
         """Search Zhihu for specific queries."""
         url = "https://www.zhihu.com/api/v4/search_v3"
         params = {
@@ -125,9 +158,7 @@ class ZhihuSpider(BaseSpider):
                 continue
 
             content = obj.get("content", "")
-            # Strip HTML tags for plain text
-            import re
-            text = re.sub(r'<[^>]+>', '', content)
+            text = re.sub(r"<[^>]+>", "", content)
 
             if len(text) < 50:
                 continue
@@ -177,5 +208,8 @@ class ZhihuSpider(BaseSpider):
                     headers={"User-Agent": "Mozilla/5.0"},
                 )
                 return response.status_code == 200
+        except httpx.RequestError:
+            return False
         except Exception:
+            logger.exception("zhihu_health_check_failed")
             return False

@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+import logging
+import re
+from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
 from autoincome.core.spiders.base import BaseSpider
+
+logger = logging.getLogger(__name__)
 
 
 class RSSSpider(BaseSpider):
@@ -15,43 +20,53 @@ class RSSSpider(BaseSpider):
     name = "rss"
     base_url = ""
 
-    # Pre-configured RSS feeds related to side hustles
     DEFAULT_FEEDS = [
         "https://www.v2ex.com/feed/tab/create.xml",
         "https://www.v2ex.com/feed/tab/jobs.xml",
     ]
 
-    async def fetch(self, limit: int = 20, **kwargs: Any) -> List[Dict[str, Any]]:
+    async def fetch(self, limit: int = 20, **kwargs: Any) -> list[dict[str, Any]]:
         """Fetch RSS feeds and parse entries."""
         feeds = kwargs.get("feeds", self.DEFAULT_FEEDS)
-        opportunities: List[Dict[str, Any]] = []
+        opportunities: list[dict[str, Any]] = []
 
         async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
             for feed_url in feeds:
                 try:
                     items = await self._fetch_feed(client, feed_url, limit)
                     opportunities.extend(items)
+                except httpx.HTTPStatusError as exc:
+                    logger.warning(
+                        "rss_feed_http_error",
+                        url=feed_url,
+                        status=exc.response.status_code,
+                    )
+                except httpx.RequestError as exc:
+                    logger.warning(
+                        "rss_feed_request_error",
+                        url=feed_url,
+                        error=str(exc),
+                    )
                 except Exception:
-                    continue
+                    logger.exception("rss_feed_unexpected_error", url=feed_url)
 
         return opportunities
 
     async def _fetch_feed(
-        self, client: httpx.AsyncClient, feed_url: str, limit: int
-    ) -> List[Dict[str, Any]]:
+        self,
+        client: httpx.AsyncClient,
+        feed_url: str,
+        limit: int,
+    ) -> list[dict[str, Any]]:
         """Fetch and parse a single RSS feed."""
         response = await client.get(feed_url)
         response.raise_for_status()
         content = response.text
 
-        # Simple XML parsing for RSS items
-        import re
-
         opportunities = []
 
-        # Extract items using regex (lightweight, no XML dependency)
         items = re.findall(
-            r'<item>.*?</item>',
+            r"<item>.*?</item>",
             content,
             re.DOTALL,
         )[:limit]
@@ -60,13 +75,11 @@ class RSSSpider(BaseSpider):
             title = self._extract_tag(item_xml, "title")
             description = self._extract_tag(item_xml, "description")
             link = self._extract_tag(item_xml, "link")
-            pub_date = self._extract_tag(item_xml, "pubDate")
 
             if not title:
                 continue
 
-            # Strip HTML from description
-            desc_text = re.sub(r'<[^>]+>', '', description or title)
+            desc_text = re.sub(r"<[^>]+>", "", description or title)
 
             opp = {
                 "title": title[:256],
@@ -93,9 +106,8 @@ class RSSSpider(BaseSpider):
 
     def _extract_tag(self, xml: str, tag: str) -> str:
         """Extract content between XML tags."""
-        import re
         match = re.search(
-            rf'<{tag}[^>]*>(.*?)</{tag}>',
+            rf"<{tag}[^>]*>(.*?)</{tag}>",
             xml,
             re.DOTALL,
         )
@@ -105,7 +117,6 @@ class RSSSpider(BaseSpider):
 
     def _get_feed_name(self, url: str) -> str:
         """Extract a readable name from feed URL."""
-        from urllib.parse import urlparse
         parsed = urlparse(url)
         domain = parsed.netloc.replace("www.", "")
         return domain.split(".")[0]
@@ -119,5 +130,8 @@ class RSSSpider(BaseSpider):
                     if response.status_code == 200:
                         return True
                 return False
+        except httpx.RequestError:
+            return False
         except Exception:
+            logger.exception("rss_health_check_failed")
             return False

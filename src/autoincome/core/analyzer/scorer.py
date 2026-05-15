@@ -2,12 +2,17 @@
 
 All inputs are validated for type and range before processing.
 No hardcoded weights can be overridden without validation.
+
+This is a rules-based scoring engine, not an AI/ML model.
+Scores are computed from structured heuristic rules calibrated
+against empirical thresholds. Future versions may incorporate
+ML models if validated training data becomes available.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List
+from typing import Any
 
 from autoincome.core.config import get_settings
 
@@ -22,17 +27,21 @@ class ScoreResult:
     credibility: float = 0.0
     roi: float = 0.0
     replicability: float = 0.0
-    reasons: List[str] = field(default_factory=list)
+    reasons: list[str] = field(default_factory=list)
 
 
 class Scorer:
-    """Production-grade opportunity scorer."""
+    """Rules-based opportunity scorer.
+
+    Uses weighted heuristic rules to evaluate opportunities
+    across 5 dimensions. Not an AI/ML model.
+    """
 
     HIGH_CRED_SOURCES: frozenset[str] = frozenset({
         "V2EX", "GitHub", "知乎高赞", "即刻精选", "Reddit", "HackerNews",
     })
 
-    def __init__(self, weights: Dict[str, float] | None = None) -> None:
+    def __init__(self, weights: dict[str, float] | None = None) -> None:
         if weights is not None:
             self._validate_weights(weights)
             self.weights = dict(weights)
@@ -40,7 +49,7 @@ class Scorer:
             self.weights = dict(get_settings().get_scoring_weights())
 
     @staticmethod
-    def _validate_weights(weights: Dict[str, float]) -> None:
+    def _validate_weights(weights: dict[str, float]) -> None:
         required = {"feasibility", "timeliness", "credibility", "roi", "replicability"}
         if not required.issubset(weights.keys()):
             raise ValueError(f"Weights must contain keys: {required}")
@@ -51,9 +60,9 @@ class Scorer:
             if not isinstance(v, (int, float)) or v < 0:
                 raise ValueError(f"Weight {k} must be non-negative numeric")
 
-    def score(self, item: Dict[str, Any]) -> ScoreResult:
+    def score(self, item: dict[str, Any]) -> ScoreResult:
         """Score a single opportunity with full validation."""
-        reasons: List[str] = []
+        reasons: list[str] = []
 
         feasibility = self._score_feasibility(item)
         if feasibility < 5.0:
@@ -93,7 +102,7 @@ class Scorer:
             reasons=reasons,
         )
 
-    def _score_feasibility(self, item: Dict[str, Any]) -> float:
+    def _score_feasibility(self, item: dict[str, Any]) -> float:
         score = 7.0
         skills = item.get("required_skills", [])
         if isinstance(skills, list):
@@ -119,7 +128,7 @@ class Scorer:
                 score -= 1.0
         return min(10.0, max(1.0, score))
 
-    def _score_timeliness(self, item: Dict[str, Any]) -> float:
+    def _score_timeliness(self, item: dict[str, Any]) -> float:
         score = 7.0
         age = item.get("age_days", 0)
         if isinstance(age, (int, float)):
@@ -139,7 +148,7 @@ class Scorer:
             score -= 2.0
         return min(10.0, max(1.0, score))
 
-    def _score_credibility(self, item: Dict[str, Any]) -> float:
+    def _score_credibility(self, item: dict[str, Any]) -> float:
         score = 6.0
         source = str(item.get("source", ""))
         if any(s in source for s in self.HIGH_CRED_SOURCES):
@@ -150,12 +159,15 @@ class Scorer:
             score += 1.5
         feedback = item.get("feedback", [])
         if isinstance(feedback, list) and feedback:
-            positive = sum(1 for f in feedback if isinstance(f, dict) and f.get("positive"))
+            positive = sum(
+                1 for f in feedback
+                if isinstance(f, dict) and f.get("positive")
+            )
             ratio = positive / len(feedback)
             score += (ratio - 0.5) * 3
         return min(10.0, max(1.0, score))
 
-    def _score_roi(self, item: Dict[str, Any]) -> float:
+    def _score_roi(self, item: dict[str, Any]) -> float:
         score = 6.0
         income = item.get("monthly_income", 0)
         if isinstance(income, (int, float)):
@@ -182,7 +194,7 @@ class Scorer:
                 score -= 1.0
         return min(10.0, max(1.0, score))
 
-    def _score_replicability(self, item: Dict[str, Any]) -> float:
+    def _score_replicability(self, item: dict[str, Any]) -> float:
         score = 6.0
         cases = item.get("success_cases", 0)
         if isinstance(cases, int):
@@ -202,6 +214,6 @@ class Scorer:
             score += 0.5
         return min(10.0, max(1.0, score))
 
-    def batch_score(self, items: List[Dict[str, Any]]) -> List[ScoreResult]:
+    def batch_score(self, items: list[dict[str, Any]]) -> list[ScoreResult]:
         """Score multiple items."""
         return [self.score(item) for item in items]

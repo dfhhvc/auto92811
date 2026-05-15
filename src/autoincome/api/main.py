@@ -108,11 +108,16 @@ app.add_middleware(
     max_age=600,
 )
 
-# Trusted Host
-app.add_middleware(
-    TrustedHostMiddleware,
-    allowed_hosts=_settings.trusted_hosts,
-)
+# Trusted Host (skip in testing to allow testserver)
+if not _settings.is_testing():
+    _trusted = list(_settings.trusted_hosts)
+    if _settings.is_production() and "*" in _trusted:
+        _trusted = ["localhost", "127.0.0.1"]
+
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=_trusted,
+    )
 
 # Request ID + Timing + Security Headers
 @app.middleware("http")

@@ -81,7 +81,7 @@ class Settings(BaseSettings):
     jwt_expiry_minutes: int = Field(default=60, ge=5, le=10080)
     password_min_length: int = Field(default=12, ge=8, le=128)
     max_concurrent_requests: int = Field(default=100, ge=10, le=10000)
-    trusted_hosts: list[str] = Field(default_factory=lambda: ["*"])
+    trusted_hosts: list[str] = Field(default_factory=lambda: ["localhost", "127.0.0.1"])
 
     # ── Features ──────────────────────────────────────────────────
     enable_registration: bool = True

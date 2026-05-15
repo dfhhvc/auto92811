@@ -150,6 +150,33 @@ async def run_scan(
     )
     db.add(log)
 
+    # Build proper OpportunityResponse-compatible dicts
+    opportunity_responses = []
+    for item in scored[:max_results]:
+        from datetime import datetime, timezone
+        opp = {
+            "id": item.get("id", generate_id()),
+            "title": item.get("title", ""),
+            "description": item.get("description", ""),
+            "time_investment": item.get("time_investment", "2h/天"),
+            "expected_income": item.get("expected_income", "未知"),
+            "source": item.get("source", ""),
+            "source_url": item.get("source_url"),
+            "verified": bool(item.get("verified", False)),
+            "warning": item.get("warning"),
+            "tags": item.get("tags", []),
+            "score_total": item.get("score", 5.0),
+            "score_feasibility": item.get("score_feasibility", 0.0),
+            "score_timeliness": item.get("score_timeliness", 0.0),
+            "score_credibility": item.get("score_credibility", 0.0),
+            "score_roi": item.get("score_roi", 0.0),
+            "score_replicability": item.get("score_replicability", 0.0),
+            "match_score": item.get("match_score"),
+            "merge_count": item.get("merge_count", 1),
+            "created_at": datetime.now(timezone.utc),
+        }
+        opportunity_responses.append(opp)
+
     return ScanResult(
         status="success" if all_items else "partial",
         raw_count=len(all_items),
@@ -158,6 +185,6 @@ async def run_scan(
         valid_count=len(scored),
         recommended_count=min(max_results, len(scored)),
         elapsed_seconds=round(elapsed, 2),
-        opportunities=scored[:max_results],
+        opportunities=opportunity_responses,
         error_message=None if all_items else "No real data sources available, using demo",
     )

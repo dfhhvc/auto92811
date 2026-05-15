@@ -176,15 +176,21 @@ class DatabaseManager:
         # Testing: use NullPool to avoid connection overhead
         poolclass = NullPool if settings.env == "testing" else None
 
+        engine_kwargs = {
+            "echo": settings.debug,
+            "pool_pre_ping": True,
+            "pool_recycle": 300,
+            "poolclass": poolclass,
+            "future": True,
+        }
+        # SQLite/NullPool does not support pool_size/max_overflow
+        if poolclass is not NullPool:
+            engine_kwargs["pool_size"] = settings.db_pool_size
+            engine_kwargs["max_overflow"] = settings.db_max_overflow
+
         self._engine = create_async_engine(
             settings.db_url,
-            echo=settings.debug,
-            pool_size=settings.db_pool_size,
-            max_overflow=settings.db_max_overflow,
-            pool_pre_ping=True,  # Verify connections before use
-            pool_recycle=300,    # Recycle connections after 5min
-            poolclass=poolclass,
-            future=True,
+            **engine_kwargs,
         )
 
         self._session_factory = async_sessionmaker(

@@ -152,7 +152,7 @@ def validate_safe_url(url: str | None) -> str | None:
 
 _MAX_STRING_LEN = 4096
 _SAFE_PATTERN = re.compile(r"[<>'\"&%`]|javascript:|data:|vbscript:", re.IGNORECASE)
-_PATH_TRAVERSAL = re.compile(r"\.{2,}[/\\]|")  # noqa: W605
+_PATH_TRAVERSAL = re.compile(r"\.{2,}[/\\]")  # noqa: W605
 
 
 def sanitize_string(value: str, max_len: int = _MAX_STRING_LEN) -> str:

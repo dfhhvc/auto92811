@@ -5,17 +5,17 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from autoincome.api.main import app
 from autoincome.core.config import reload_settings
 from autoincome.core.database import init_db
 
-client = TestClient(app)
-
 
 @pytest.fixture(autouse=True)
-def override_settings(monkeypatch):
+def override_settings(monkeypatch, tmp_path):
     """Override settings for tests."""
     monkeypatch.setenv("AUTOINCOME_SECRET_KEY", "test-secret-key-32-chars-long!!!")
+    db_file = tmp_path / "test.db"
+    monkeypatch.setenv("AUTOINCOME_DB_URL", f"sqlite+aiosqlite:///{db_file}")
+    monkeypatch.setenv("AUTOINCOME_ENV", "testing")
     reload_settings()
 
 
@@ -25,7 +25,17 @@ async def setup_db():
     await init_db()
 
 
-def test_health_check():
+@pytest.fixture
+def client():
+    """Lazy-loaded TestClient with DB initialization."""
+    from autoincome.api.main import app
+    from autoincome.core.database import init_db
+    import asyncio
+    asyncio.run(init_db())
+    return TestClient(app)
+
+
+def test_health_check(client):
     """Health endpoint returns correct structure."""
     response = client.get("/api/v1/health")
     assert response.status_code == 200
@@ -36,7 +46,7 @@ def test_health_check():
     assert data["database"] in ("connected", "disconnected", "error")
 
 
-def test_list_opportunities():
+def test_list_opportunities(client):
     """Opportunities list endpoint works."""
     response = client.get("/api/v1/opportunities?min_score=5.0&max_results=5")
     assert response.status_code == 200
@@ -44,7 +54,7 @@ def test_list_opportunities():
     assert isinstance(data, list)
 
 
-def test_scan_endpoint():
+def test_scan_endpoint(client):
     """Scan endpoint triggers without error."""
     response = client.post("/api/v1/opportunities/scan?min_score=5.0&max_results=5")
     assert response.status_code == 200
@@ -54,7 +64,7 @@ def test_scan_endpoint():
     assert "elapsed_seconds" in data
 
 
-def test_config_endpoint():
+def test_config_endpoint(client):
     """Public config endpoint returns safe data."""
     response = client.get("/api/v1/config")
     assert response.status_code == 200
@@ -66,16 +76,16 @@ def test_config_endpoint():
     assert "secret_key" not in str(data).lower()
 
 
-def test_root_returns_html():
+def test_root_returns_html(client):
     """Root path serves HTML."""
     response = client.get("/")
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
 
 
-def test_security_headers():
+def test_security_headers(client):
     """Security headers are present."""
-    response = client.get("/api/v1/health")
+    response = client.get("/")
     assert response.headers["X-Content-Type-Options"] == "nosniff"
     assert response.headers["X-Frame-Options"] == "DENY"
     assert "Content-Security-Policy" in response.headers

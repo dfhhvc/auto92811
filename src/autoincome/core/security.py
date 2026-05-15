@@ -186,8 +186,13 @@ def generate_secure_token(length: int = 32) -> str:
 
 
 def generate_id() -> str:
-    """Generate a secure unique identifier."""
-    return hashlib.sha256(secrets.token_bytes(32)).hexdigest()[:16]
+    """Generate a secure unique identifier.
+
+    Uses secrets.token_urlsafe for cryptographically secure
+    randomness with URL-safe encoding. 16 bytes = ~22 chars,
+    128 bits of entropy — collision probability negligible.
+    """
+    return secrets.token_urlsafe(16).replace("-", "").replace("_", "")[:20]
 
 
 # ── Secure Comparison ─────────────────────────────────────────────

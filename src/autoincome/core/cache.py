@@ -80,9 +80,22 @@ class CacheManager:
         """Check if key exists."""
         return await self.redis.exists(key) > 0
 
-    async def flush(self) -> None:
-        """Clear all cache (use with caution)."""
-        await self.redis.flushdb()
+    async def ping(self) -> bool:
+        """Check Redis connectivity."""
+        try:
+            return await self.redis.ping() == "PONG"
+        except Exception:
+            return False
+
+    async def flush_namespace(self, namespace: str) -> None:
+        """Clear keys matching a namespace pattern (safe scoped deletion)."""
+        cursor = 0
+        while True:
+            cursor, keys = await self.redis.scan(cursor, match=f"{namespace}:*", count=100)
+            if keys:
+                await self.redis.delete(*keys)
+            if cursor == 0:
+                break
 
     # ── Cache-Aside Pattern ───────────────────────────────────────
 

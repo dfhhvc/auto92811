@@ -115,13 +115,17 @@ class SemanticDeduplicator:
         raise ValueError("Invalid embedding format")
 
     def _local_embedding(self, text: str) -> list[float]:
-        """Fast local fallback: character n-gram hash embedding."""
+        """Fast local fallback: character n-gram hash embedding.
+
+        Uses hashlib.md5 for deterministic hashing across process restarts.
+        Python's built-in hash() is randomized per process (hash randomization).
+        """
         text = text.lower()[:1000]
         dim = 32
         vec = [0.0] * dim
         for i in range(len(text) - 2):
-            tri = text[i:i+3]
-            idx = hash(tri) % dim
+            tri = text[i:i+3].encode("utf-8")
+            idx = int(hashlib.md5(tri).hexdigest(), 16) % dim
             vec[idx] += 1.0
         # Normalize
         norm = math.sqrt(sum(v * v for v in vec)) or 1.0

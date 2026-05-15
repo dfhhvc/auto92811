@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import time
 from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from autoincome.api.schemas.models import HealthCheck
 from autoincome.core.ai.llm_client import get_llm_client
 from autoincome.core.cache import cache
 from autoincome.core.captcha.solver import get_captcha_solver
@@ -22,8 +22,8 @@ _start_time = time.time()
 router = APIRouter(tags=["Health"])
 
 
-@router.get("/health", response_model=HealthCheck)
-async def health_check(db: AsyncSession = Depends(get_db)):
+@router.get("/health")
+async def health_check(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     """Return comprehensive health status with DB, Redis, and AI verification."""
     # Database check
     db_status = "disconnected"

@@ -37,8 +37,16 @@ from autoincome.core.security import (
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-# Pre-computed bcrypt hash for timing-attack mitigation.
-_DUMMY_HASH = hash_password("dummy-" + generate_id()[:16])
+# Lazy-computed bcrypt hash for timing-attack mitigation.
+# Pre-computing at import time slows cold start; compute on first use instead.
+_dummy_hash_cached: str | None = None
+
+
+def _get_dummy_hash() -> str:
+    global _dummy_hash_cached
+    if _dummy_hash_cached is None:
+        _dummy_hash_cached = hash_password("dummy-" + generate_id()[:16])
+    return _dummy_hash_cached
 
 
 def _get_client_ip(request: Request) -> str:
@@ -138,7 +146,7 @@ async def register(
             details=f"Attempted registration with existing email domain: {payload.email.split('@')[-1]}",
             success=False,
         )
-        raise HTTPException(status_code=409, detail="Registration failed")
+        raise HTTPException(status_code=401, detail="Invalid email or password")
 
     user = UserModel(
         id=generate_id(),
@@ -188,7 +196,7 @@ async def login(
     user = result.scalar_one_or_none()
 
     # Timing-safe: always perform bcrypt verification to prevent user enumeration
-    target_hash = user.password_hash if user else _DUMMY_HASH
+    target_hash = user.password_hash if user else _get_dummy_hash()
     valid = verify_password(payload.password, target_hash)
 
     client_ip = _get_client_ip(request)

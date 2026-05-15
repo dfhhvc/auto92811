@@ -16,10 +16,12 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from slowapi.errors import RateLimitExceeded
+from sqlalchemy.exc import SQLAlchemyError
 from starlette_prometheus import PrometheusMiddleware, metrics
 
 from autoincome import __version__
@@ -90,6 +92,46 @@ async def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONR
         status_code=429,
         content={"detail": "Rate limit exceeded. Please slow down."},
         headers={"Retry-After": "60"},
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_error_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """Handle Pydantic validation errors with structured response."""
+    errors = []
+    for err in exc.errors():
+        errors.append({
+            "field": ".".join(str(x) for x in err.get("loc", [])),
+            "message": err.get("msg", ""),
+            "type": err.get("type", ""),
+        })
+    logger.warning("validation_error", path=request.url.path, errors=errors)
+    return JSONResponse(
+        status_code=422,
+        content={"detail": "Validation failed", "errors": errors},
+    )
+
+
+@app.exception_handler(SQLAlchemyError)
+async def _db_error_handler(request: Request, exc: SQLAlchemyError) -> JSONResponse:
+    """Handle database errors without leaking internal details."""
+    logger.error("database_error", path=request.url.path, error=str(exc))
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Database operation failed. Please try again later."},
+    )
+
+
+@app.exception_handler(Exception)
+async def _global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Catch-all handler: log full stack trace, return safe generic response."""
+    logger.exception("unhandled_exception", path=request.url.path, error=str(exc))
+    detail = "Internal server error"
+    if _settings.debug:
+        detail = f"Internal server error: {exc}"
+    return JSONResponse(
+        status_code=500,
+        content={"detail": detail},
     )
 
 # CORS

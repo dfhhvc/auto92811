@@ -1,11 +1,11 @@
 """Authentication API with secure password handling and JWT.
 
 Security mitigations:
-- Rate limiting on all auth endpoints
+- Rate limiting on all auth endpoints (5/min register, 10/min login, 20/min logout)
 - Timing-safe password verification (always runs bcrypt)
 - JWT with unique JTI for revocation
-- Audit logging for security events
 - Token blacklist on logout
+- Identical error messages to prevent user enumeration
 """
 
 from __future__ import annotations
@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from autoincome.api.schemas.models import TokenResponse, UserCreate, UserLogin, UserProfile
 from autoincome.core.config import get_settings
 from autoincome.core.database import TokenBlacklistModel, UserModel, get_db
+from autoincome.core.rate_limit import limiter
 from autoincome.core.security import (
     create_access_token,
     decode_access_token,
@@ -30,8 +31,10 @@ from autoincome.core.security import (
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-# Timing-attack mitigation: dummy bcrypt hash for non-existent users
-_DUMMY_HASH = "$2b$12$xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+# Pre-computed bcrypt hash for timing-attack mitigation.
+# This is a REAL hash of a random password. Verifying against it
+# takes the same time as verifying a real user password.
+_DUMMY_HASH = hash_password("timing-attack-mitigation-dummy-password-" + generate_id())
 
 
 async def get_current_user(
@@ -88,12 +91,13 @@ async def get_current_user(
 
 
 @router.post("/register", response_model=TokenResponse, status_code=201)
+@limiter.limit("5/minute")
 async def register(
     request: Request,
     payload: UserCreate,
     db: AsyncSession = Depends(get_db),
 ):
-    """Register a new user account (rate-limited: 5/min)."""
+    """Register a new user account."""
     settings = get_settings()
     if not settings.enable_registration:
         raise HTTPException(status_code=403, detail="Registration is disabled")
@@ -103,8 +107,8 @@ async def register(
         select(UserModel).where(UserModel.email == payload.email)
     )
     if existing.scalar_one_or_none():
-        # Security: do NOT reveal that email exists. Same response as generic failure.
-        raise HTTPException(status_code=409, detail="Email already registered")
+        # Security: vague message to prevent email enumeration
+        raise HTTPException(status_code=409, detail="Registration failed")
 
     user = UserModel(
         id=generate_id(),
@@ -129,12 +133,13 @@ async def register(
 
 
 @router.post("/login", response_model=TokenResponse)
+@limiter.limit("10/minute")
 async def login(
     request: Request,
     payload: UserLogin,
     db: AsyncSession = Depends(get_db),
 ):
-    """Authenticate and return JWT (rate-limited: 10/min)."""
+    """Authenticate and return JWT."""
     result = await db.execute(
         select(UserModel).where(UserModel.email == payload.email)
     )
@@ -164,6 +169,7 @@ async def login(
 
 
 @router.post("/logout")
+@limiter.limit("20/minute")
 async def logout(
     request: Request,
     user: UserModel = Depends(get_current_user),

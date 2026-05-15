@@ -18,20 +18,16 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
-from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 
 from autoincome import __version__
 from autoincome.api.routers import auth, config as config_router, health, opportunities, scan
 from autoincome.core.config import get_settings
 from autoincome.core.database import init_db
+from autoincome.core.rate_limit import limiter
 
 _settings = get_settings()
 _start_time = time.time()
-
-# Rate limiter: use X-Forwarded-For behind proxy, fallback to direct IP
-limiter = Limiter(key_func=get_remote_address)
 
 
 @asynccontextmanager

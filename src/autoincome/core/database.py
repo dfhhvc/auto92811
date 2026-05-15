@@ -2,11 +2,12 @@
 
 All queries use parameterized statements.
 No raw SQL concatenation with user input.
+Race-condition-safe singleton initialization.
 """
 
 from __future__ import annotations
 
-import json
+import threading
 from datetime import datetime, timezone
 from typing import Any, AsyncIterator
 
@@ -94,36 +95,56 @@ class ScanLogModel(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
-# ── Engine & Session ──────────────────────────────────────────────
+class TokenBlacklistModel(Base):
+    """JWT token revocation blacklist.
+
+    Tokens are added here on logout. Expired entries should be
+    periodically cleaned by a background job.
+    """
+
+    __tablename__ = "token_blacklist"
+
+    jti = Column(String(32), primary_key=True, index=True)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+# ── Engine & Session (thread-safe singleton) ──────────────────────
 
 _async_engine: Any = None
 _async_session: Any = None
+_engine_lock = threading.Lock()
+_session_lock = threading.Lock()
 
 
 def get_async_engine():
-    """Lazy-init async engine."""
+    """Lazy-init async engine (thread-safe)."""
     global _async_engine
     if _async_engine is None:
-        settings = get_settings()
-        db_url = f"sqlite+aiosqlite:///{settings.db_path}"
-        _async_engine = create_async_engine(
-            db_url,
-            echo=settings.debug,
-            pool_size=settings.db_pool_size,
-            max_overflow=10,
-        )
+        with _engine_lock:
+            if _async_engine is None:
+                settings = get_settings()
+                db_url = f"sqlite+aiosqlite:///{settings.db_path}"
+                _async_engine = create_async_engine(
+                    db_url,
+                    echo=settings.debug,
+                    pool_size=settings.db_pool_size,
+                    max_overflow=10,
+                )
     return _async_engine
 
 
 def get_async_session() -> async_sessionmaker[AsyncSession]:
-    """Lazy-init async session factory."""
+    """Lazy-init async session factory (thread-safe)."""
     global _async_session
     if _async_session is None:
-        _async_session = async_sessionmaker(
-            get_async_engine(),
-            class_=AsyncSession,
-            expire_on_commit=False,
-        )
+        with _session_lock:
+            if _async_session is None:
+                _async_session = async_sessionmaker(
+                    get_async_engine(),
+                    class_=AsyncSession,
+                    expire_on_commit=False,
+                )
     return _async_session
 
 

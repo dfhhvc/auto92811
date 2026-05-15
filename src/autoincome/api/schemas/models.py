@@ -35,7 +35,7 @@ class OpportunityCreate(BaseModel):
     success_cases: int = Field(default=0, ge=0, le=100_000)
     has_tutorial: bool = False
     has_video_tutorial: bool = False
-    feedback: List[dict[str, Any]] = Field(default_factory=list, max_length=100)
+    feedback: List[dict[str, Any]] = Field(default_factory=list, max_length=50)
 
     @field_validator("tags", "required_skills")
     @classmethod
@@ -43,6 +43,33 @@ class OpportunityCreate(BaseModel):
         for tag in v:
             if len(tag) > 64:
                 raise ValueError("Each tag must not exceed 64 characters")
+        return v
+
+    @field_validator("source_url")
+    @classmethod
+    def _validate_url(cls, v: str | None) -> str | None:
+        """Reject dangerous URL protocols to prevent XSS via pseudo-URLs."""
+        if v is None:
+            return v
+        v_lower = v.lower().strip()
+        dangerous = ("javascript:", "data:", "vbscript:", "file:", "about:")
+        if any(v_lower.startswith(p) for p in dangerous):
+            raise ValueError("URL contains a dangerous protocol")
+        if not (v_lower.startswith("http://") or v_lower.startswith("https://")):
+            raise ValueError("URL must use HTTP or HTTPS protocol")
+        return v
+
+    @field_validator("feedback")
+    @classmethod
+    def _validate_feedback(cls, v: List[dict[str, Any]]) -> List[dict[str, Any]]:
+        """Prevent DoS via oversized or deeply nested feedback objects."""
+        if len(v) > 50:
+            raise ValueError("Too many feedback items (max 50)")
+        for item in v:
+            if not isinstance(item, dict):
+                raise ValueError("Each feedback item must be a dictionary")
+            if len(str(item)) > 2048:
+                raise ValueError("Individual feedback item too large (max 2048 chars)")
         return v
 
 
@@ -152,10 +179,9 @@ class TokenResponse(BaseModel):
 
 
 class HealthCheck(BaseModel):
-    """Health check response."""
+    """Health check response (minimal info to prevent version leakage)."""
 
     status: str
-    version: str
     timestamp: datetime
     uptime_seconds: float
     database: str

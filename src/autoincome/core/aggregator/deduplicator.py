@@ -2,6 +2,7 @@
 
 Replaces weak MD5 with SHA-256 for fingerprinting.
 No hardcoded secrets. Thread-safe.
+Input size limits prevent DoS via oversized text.
 """
 
 from __future__ import annotations
@@ -9,6 +10,11 @@ from __future__ import annotations
 import hashlib
 import threading
 from typing import Dict, List, Set, Tuple
+
+
+# Prevent DoS via memory exhaustion
+_MAX_TEXT_LEN = 100_000  # 100KB per text field
+_MAX_ITEMS = 10_000  # max items per deduplicate call
 
 
 class Deduplicator:
@@ -41,6 +47,9 @@ class Deduplicator:
         """Extract domain keywords from text."""
         if not isinstance(text, str) or not text:
             return []
+        # Truncate oversized input to prevent CPU/memory DoS
+        if len(text) > _MAX_TEXT_LEN:
+            text = text[:_MAX_TEXT_LEN]
         text_lower = text.lower()
         found = [kw for kw in self.DOMAIN_KEYWORDS if kw.lower() in text_lower]
         return list(dict.fromkeys(found))
@@ -84,6 +93,8 @@ class Deduplicator:
         """Deduplicate a list of items. Thread-safe."""
         if not items:
             return [], 0
+        if len(items) > _MAX_ITEMS:
+            items = items[:_MAX_ITEMS]
 
         with self._lock:
             unique_items: List[Dict[str, Any]] = []

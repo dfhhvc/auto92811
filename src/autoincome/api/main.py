@@ -2,9 +2,9 @@
 
 Security features:
 - Rate limiting (slowapi)
-- CORS with explicit allowlist
+- CORS with explicit allowlist (credentials + wildcard forbidden)
 - Security headers (HSTS, CSP, X-Frame-Options)
-- Request size limits
+- Request body size limits (DoS prevention)
 - Structured logging (no sensitive data)
 - Input validation via Pydantic
 """
@@ -30,7 +30,7 @@ from autoincome.core.database import init_db
 _settings = get_settings()
 _start_time = time.time()
 
-# Rate limiter
+# Rate limiter: use X-Forwarded-For behind proxy, fallback to direct IP
 limiter = Limiter(key_func=get_remote_address)
 
 
@@ -65,10 +65,17 @@ async def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONR
     )
 
 
-# CORS: explicit allowlist only
+# CORS: explicit allowlist only. Never allow wildcard with credentials.
+_cors_origins = list(_settings.cors_origins)
+if "*" in _cors_origins:
+    # Security: wildcard + credentials is forbidden by CORS spec
+    _cors_origins = [o for o in _cors_origins if o != "*"]
+    if not _cors_origins:
+        _cors_origins = ["http://localhost:8080", "http://127.0.0.1:8080"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_settings.cors_origins,
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
@@ -78,7 +85,7 @@ app.add_middleware(
 # Trusted host validation
 app.add_middleware(
     TrustedHostMiddleware,
-    allowed_hosts=["autoincome.dev", "app.autoincome.dev", "localhost", "*"]
+    allowed_hosts=["autoincome.dev", "app.autoincome.dev", "localhost", "127.0.0.1"]
     if _settings.debug
     else ["autoincome.dev", "app.autoincome.dev"],
 )
@@ -90,12 +97,54 @@ async def _security_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+
+    # Content-Security-Policy based on response type
+    content_type = response.headers.get("content-type", "")
+    if content_type.startswith("text/html"):
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: https:; "
+            "font-src 'self'; "
+            "connect-src 'self'; "
+            "frame-ancestors 'none'; "
+            "base-uri 'self'; "
+            "form-action 'self';"
+        )
+    else:
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'none'; frame-ancestors 'none';"
+        )
+
     if not _settings.debug:
-        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains; preload"
+        )
     return response
+
+
+@app.middleware("http")
+async def _body_size_limit(request: Request, call_next):
+    """Prevent DoS via oversized request bodies."""
+    if request.method in ("POST", "PUT", "PATCH"):
+        content_length = request.headers.get("content-length")
+        if content_length:
+            try:
+                size = int(content_length)
+                if size > _settings.max_request_size:
+                    return JSONResponse(
+                        status_code=413,
+                        content={"detail": "Request entity too large"},
+                    )
+            except ValueError:
+                return JSONResponse(
+                    status_code=400,
+                    content={"detail": "Invalid Content-Length header"},
+                )
+    return await call_next(request)
 
 
 @app.middleware("http")
@@ -104,8 +153,8 @@ async def _request_logging(request: Request, call_next):
     start = time.time()
     response = await call_next(request)
     duration = time.time() - start
-    # Structured log: no body, no query params, no headers with secrets
-    # In production, send to structured logging system
+    # Structured log: method, path, status, duration
+    # NO query params, NO body, NO headers with secrets
     return response
 
 

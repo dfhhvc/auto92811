@@ -2,7 +2,7 @@
 
 Implements OWASP-compliant security primitives:
 - Secure password hashing (bcrypt/Argon2id)
-- JWT token generation/validation
+- JWT token generation/validation with JTI for revocation
 - Input sanitization
 - Secure random generation
 - Rate limiting helpers
@@ -62,7 +62,7 @@ def create_access_token(
     secret_key: str,
     expires_delta: timedelta | None = None,
 ) -> str:
-    """Create a signed JWT access token.
+    """Create a signed JWT access token with unique JTI for revocation.
 
     Args:
         data: Payload dictionary (must not contain sensitive data).
@@ -74,7 +74,12 @@ def create_access_token(
     """
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=15))
-    to_encode.update({"exp": expire, "iat": datetime.now(timezone.utc), "type": "access"})
+    to_encode.update({
+        "exp": expire,
+        "iat": datetime.now(timezone.utc),
+        "type": "access",
+        "jti": generate_id(),  # unique token ID for blacklist revocation
+    })
     return jwt.encode(to_encode, secret_key, algorithm="HS256")
 
 

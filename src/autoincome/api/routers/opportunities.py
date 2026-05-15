@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,7 +39,10 @@ async def list_opportunities(
 
 
 @router.get("/{opp_id}", response_model=OpportunityResponse)
-async def get_opportunity(opp_id: str, db: AsyncSession = Depends(get_db)):
+async def get_opportunity(
+    opp_id: str = Path(..., min_length=1, max_length=64),
+    db: AsyncSession = Depends(get_db),
+):
     """Get a single opportunity by ID."""
     result = await db.execute(
         select(OpportunityModel).where(OpportunityModel.id == opp_id)

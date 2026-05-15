@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Callable
 from typing import Any
 
 import redis.asyncio as aioredis
@@ -88,7 +89,7 @@ class CacheManager:
     async def get_or_set(
         self,
         key: str,
-        factory: callable,
+        factory: Callable[[], Any],
         ttl: int = 3600,
     ) -> Any:
         """Cache-aside: get from cache or compute and store."""

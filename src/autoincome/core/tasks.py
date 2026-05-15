@@ -9,6 +9,8 @@ Background tasks:
 
 from __future__ import annotations
 
+from typing import Any
+
 from celery import Celery
 from celery.signals import task_failure, task_postrun, task_prerun
 

@@ -1,0 +1,117 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "autoincome.fullname" . }}
+  labels:
+    {{- include "autoincome.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "autoincome.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "autoincome.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "autoincome.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          env:
+            - name: AUTOINCOME_ENV
+              value: {{ .Values.config.env | quote }}
+            - name: AUTOINCOME_DEBUG
+              value: {{ .Values.config.debug | quote }}
+            - name: AUTOINCOME_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "autoincome.fullname" . }}-secret
+                  key: secret-key
+            - name: AUTOINCOME_DB_URL
+              value: {{ include "autoincome.databaseUrl" . | quote }}
+            - name: AUTOINCOME_REDIS_URL
+              value: {{ include "autoincome.redisUrl" . | quote }}
+            - name: AUTOINCOME_CELERY_BROKER_URL
+              value: {{ include "autoincome.redisUrl" . | quote }}
+            - name: AUTOINCOME_CELERY_RESULT_BACKEND
+              value: {{ include "autoincome.redisUrl" . | quote }}
+            - name: AUTOINCOME_CORS_ORIGINS
+              value: {{ .Values.config.corsOrigins | quote }}
+            - name: AUTOINCOME_RATE_LIMIT
+              value: {{ .Values.config.rateLimit | quote }}
+            - name: AUTOINCOME_LOG_LEVEL
+              value: {{ .Values.config.logLevel | quote }}
+            - name: AUTOINCOME_LOG_FORMAT
+              value: {{ .Values.config.logFormat | quote }}
+            {{- if .Values.llm.moonshot.enabled }}
+            - name: AUTOINCOME_MOONSHOT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "autoincome.fullname" . }}-secret
+                  key: moonshot-api-key
+            - name: AUTOINCOME_MOONSHOT_MODEL
+              value: {{ .Values.llm.moonshot.model | quote }}
+            {{- end }}
+            {{- if .Values.llm.openrouter.enabled }}
+            - name: AUTOINCOME_OPENROUTER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "autoincome.fullname" . }}-secret
+                  key: openrouter-api-key
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

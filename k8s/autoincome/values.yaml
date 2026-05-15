@@ -1,0 +1,167 @@
+# AutoIncome Helm Chart Default Values
+
+replicaCount: 2
+
+image:
+  repository: ghcr.io/dfhhvc/autoincome
+  pullPolicy: IfNotPresent
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podSecurityContext:
+  fsGroup: 1000
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+  hosts:
+    - host: api.autoincome.dev
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: autoincome-tls
+      hosts:
+        - api.autoincome.dev
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 250m
+    memory: 512Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+nodeSelector: {}
+tolerations: []
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - autoincome
+          topologyKey: kubernetes.io/hostname
+
+# Application Configuration
+config:
+  env: production
+  debug: false
+  secretKey: ""  # Required: override with --set config.secretKey=...
+  corsOrigins: "https://autoincome.dev,https://app.autoincome.dev"
+  rateLimit: "200/minute"
+  maxRequestSize: 1048576
+  jwtExpiryMinutes: 60
+  scanIntervalMinutes: 240
+  minScoreThreshold: 7.0
+  highScoreThreshold: 8.5
+  logLevel: INFO
+  logFormat: json
+
+# LLM Providers
+llm:
+  moonshot:
+    enabled: false
+    apiKey: ""
+    model: "moonshot-v1-8k"
+  openrouter:
+    enabled: false
+    apiKey: ""
+    model: "moonshot/kimi-k2.5"
+  openai:
+    enabled: false
+    apiKey: ""
+    model: "gpt-4o-mini"
+
+# Notifications
+notifications:
+  pushover:
+    enabled: false
+    token: ""
+    user: ""
+  smtp:
+    enabled: false
+    host: ""
+    port: 587
+    user: ""
+    password: ""
+    tls: true
+    from: ""
+
+# Captcha
+Captcha:
+  twocaptcha:
+    enabled: false
+    key: ""
+  anticaptcha:
+    enabled: false
+    key: ""
+
+# Sub-chart overrides
+postgresql:
+  enabled: true
+  auth:
+    username: autoincome
+    password: changeme
+    database: autoincome
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 250m
+      limits:
+        memory: 1Gi
+        cpu: 1000m
+
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    password: changeme
+  master:
+    persistence:
+      enabled: true
+      size: 5Gi
+    resources:
+      requests:
+        memory: 128Mi
+        cpu: 100m
+      limits:
+        memory: 512Mi
+        cpu: 500m

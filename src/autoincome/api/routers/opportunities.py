@@ -158,6 +158,6 @@ async def run_scan(
         valid_count=len(scored),
         recommended_count=min(max_results, len(scored)),
         elapsed_seconds=round(elapsed, 2),
-        opportunities=[],
+        opportunities=scored[:max_results],
         error_message=None if all_items else "No real data sources available, using demo",
     )

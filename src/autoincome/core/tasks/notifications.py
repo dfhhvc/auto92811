@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from asgiref.sync import async_to_sync
+
 from autoincome.core.config import get_settings
 from autoincome.core.logging_config import get_logger
 from autoincome.core.metrics import notifications_sent_total
@@ -54,7 +56,7 @@ def send_notification(
         return {"channel": channel, "status": "skipped", "reason": "not_configured"}
 
     try:
-        success = notifier.send(title, message, **kwargs)
+        success = async_to_sync(notifier.send)(title, message, **kwargs)
         status = "delivered" if success else "failed"
         notifications_sent_total.labels(channel=channel, status=status).inc()
 

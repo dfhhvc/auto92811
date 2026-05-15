@@ -97,9 +97,14 @@ async def _db_maintenance_async() -> dict[str, Any]:
     """Async implementation of DB maintenance."""
     from autoincome.core.database import _db_manager
 
-    async with _db_manager.engine.begin() as conn:
-        # VACUUM ANALYZE for PostgreSQL
-        await conn.execute(text("VACUUM ANALYZE"))
+    # VACUUM cannot run inside a transaction block.
+    # Use a raw connection with autocommit.
+    raw_conn = await _db_manager.engine.connect()
+    try:
+        await raw_conn.execution_options(isolation_level="AUTOCOMMIT")
+        await raw_conn.execute(text("VACUUM ANALYZE"))
+    finally:
+        await raw_conn.close()
 
     logger.info("database_maintenance_completed")
     return {"status": "completed"}

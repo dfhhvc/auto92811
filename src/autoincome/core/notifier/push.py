@@ -9,7 +9,7 @@ import json
 import smtplib
 from abc import ABC, abstractmethod
 from email.mime.text import MIMEText
-from typing import Any, Dict, List
+from typing import Any
 
 import httpx
 
@@ -130,7 +130,7 @@ class WebhookNotifier(BaseNotifier):
         except Exception:
             return False
 
-    def _format_payload(self, platform: str, title: str, message: str) -> Dict[str, Any]:
+    def _format_payload(self, platform: str, title: str, message: str) -> dict[str, Any]:
         if platform == "wecom":
             return {"msgtype": "text", "text": {"content": f"{title}\n{message}"}}
         if platform == "dingtalk":
@@ -144,13 +144,13 @@ class NotificationManager:
     """Manages multiple notification channels."""
 
     def __init__(self) -> None:
-        self.notifiers: List[BaseNotifier] = [
+        self.notifiers: list[BaseNotifier] = [
             PushoverNotifier(),
             EmailNotifier(),
             WebhookNotifier(),
         ]
 
-    async def send(self, title: str, message: str, priority: str = "normal", **kwargs: Any) -> Dict[str, bool]:
+    async def send(self, title: str, message: str, priority: str = "normal", **kwargs: Any) -> dict[str, bool]:
         """Send to all configured channels."""
         results = {}
         for notifier in self.notifiers:

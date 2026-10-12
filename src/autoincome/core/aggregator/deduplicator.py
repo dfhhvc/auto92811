@@ -9,8 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import threading
-from typing import Dict, List, Set, Tuple
-
+from typing import Any, Dict, List, Set, Tuple
 
 # Prevent DoS via memory exhaustion
 _MAX_TEXT_LEN = 100_000  # 100KB per text field

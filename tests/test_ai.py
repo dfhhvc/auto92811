@@ -6,13 +6,12 @@ and personalized recommendation with mocked LLM responses.
 
 from __future__ import annotations
 
-import json
-from unittest.mock import AsyncMock, MagicMock, patch
+import asyncio
 
 import pytest
 
 from autoincome.core.ai.content_analyzer import ContentAnalyzer
-from autoincome.core.ai.llm_client import LLMClient, LLMResponse
+from autoincome.core.ai.llm_client import LLMClient
 from autoincome.core.ai.recommender import AIRecommender
 from autoincome.core.ai.semantic_dedup import SemanticDeduplicator
 
@@ -157,6 +156,3 @@ class TestAIRecommender:
             {"skills": ["写作"]}, {"title": "测试"}
         )
         assert "匹配" in reasoning or "了解" in reasoning
-
-
-import asyncio

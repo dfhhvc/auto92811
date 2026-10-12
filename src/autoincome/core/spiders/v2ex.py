@@ -6,14 +6,17 @@ Nodes of interest: "create" (分享创造), "jobs" (酷工作)
 
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 import httpx
 
+from autoincome.core.logging_config import get_logger
 from autoincome.core.spiders.base import BaseSpider
 
-logger = logging.getLogger(__name__)
+# 注意：spider 的日志调用是 structlog 风格（logger.warning("event", key=value)），
+# 必须用项目统一的 get_logger（structlog）。历史版本这里用 stdlib logging.getLogger，
+# stdlib 的 _log() 不接受任意 kwargs，任何网络错误路径都会 TypeError 崩溃。
+logger = get_logger(__name__)
 
 
 class V2EXSpider(BaseSpider):

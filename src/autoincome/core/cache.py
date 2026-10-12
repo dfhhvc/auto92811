@@ -15,6 +15,7 @@ from collections.abc import Callable
 from typing import Any
 
 import redis.asyncio as aioredis
+
 from autoincome.core.config import get_settings
 
 _redis_pool: aioredis.Redis | None = None

@@ -6,12 +6,11 @@
 
 <p align="center">
   <b>AI驱动的被动收入机会聚合器</b><br>
-  <sub>自动追踪 · 语义去重 · LLM智能评分 · 个性推荐 · 全平台覆盖</sub>
+  <sub>自动追踪 · 语义去重 · LLM智能评分 · 个性推荐</sub>
 </p>
 
 <p align="center">
   <a href="https://github.com/dfhhvc/auto92811/actions"><img src="https://img.shields.io/github/actions/workflow/status/dfhhvc/auto92811/ci.yml?branch=main&style=flat-square&label=CI" alt="CI"></a>
-  <a href="https://github.com/dfhhvc/auto92811/releases"><img src="https://img.shields.io/github/v/release/dfhhvc/auto92811?style=flat-square&color=blue" alt="Release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="License"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11%2B-blue.svg?style=flat-square" alt="Python"></a>
   <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/node-18%2B-green.svg?style=flat-square" alt="Node"></a>
@@ -20,11 +19,37 @@
 
 ---
 
+## ⚠️ 项目现状（先读这一节）
+
+这个项目处于**早期开发阶段**，远未达到"生产可用"。写在这里是为了不让任何人被下面的
+功能列表误导：
+
+| 事项 | 真实现状 |
+|------|----------|
+| 可下载的安装包 | **不存在**。仓库未创建任何 Release，没有 `.msi / .dmg / .AppImage / .apk` |
+| 线上演示站点 | **不存在**。请不要尝试访问 `app.autoincome.dev` |
+| 桌面端 / 移动端 | 仅目录脚手架，未构建 |
+| 实际运行验证 | 需要 PostgreSQL + Redis + LLM API Key 才能跑起来，作者**未提供任何实机验证记录** |
+| 代码质量 | 已有真实缺陷被修复（详见 [CHANGELOG](CHANGELOG.md)）；静态检查仍有大量存量风格问题 |
+| 维护状态 | 全部提交集中在 2026-05-15 一天内，此后未再更新 |
+
+**它能做什么**：提供一套完整的代码骨架——FastAPI 后端、SQLAlchemy 模型、Celery 任务、
+Docker/K8s 编排、React 前端、以及接入多家 LLM 的分析流程。
+适合作为"如何搭建这类系统"的参考实现来阅读。
+
+**它不能做什么**：开箱即用。想真正跑起来需要自己补齐数据库、Redis、LLM Key，
+并做好踩坑的准备。
+
+---
+
 ## 🎯 什么是 AutoIncome？
 
-**AutoIncome** 是一个生产级的AI驱动平台，自动监控全网副业和被动收入机会，通过大语言模型进行智能分析、语义去重和个性化推荐，帮助用户从海量信息中筛选出真正值得行动的高价值机会。
+**AutoIncome** 是一个 AI 驱动的副业/被动收入机会聚合平台：自动监控若干公开信息源，
+通过大语言模型做内容分析、语义去重和个性化推荐，帮用户从海量信息里筛出值得行动的机会。
 
 不同于简单的信息爬虫，AutoIncome 使用真实的大语言模型（支持 Moonshot/Kimi、OpenRouter、OpenAI 和本地 Ollama）对每一条机会进行深度分析，生成可行性、时效性、可信度、收益比和可复制性五个维度的评分，并结合用户画像做千人千面的智能推荐。
+
+> 下表中的 ✅ 表示"代码已实现"，**不等于"已验证在真实环境可用"**。
 
 ---
 
@@ -60,10 +85,10 @@
 - SQL注入防护 (SQLAlchemy ORM)
 - XSS防护 (bleach)
 - 请求体大小限制
-- 审计日志 + PII脱敏
-- OWASP Top 10 合规
+- 审计日志 + PII 脱敏
+- 安全相关代码参照 OWASP Top 10 的思路编写（**未做过第三方安全审计，不等于"合规"**）
 
-### 📊 生产级基础设施
+### 📊 基础设施（均为代码实现，未做压测验证）
 
 | 组件 | 技术 | 说明 |
 |------|------|------|
@@ -75,31 +100,34 @@
 | 日志 | structlog + JSON | 结构化日志、追踪 |
 | 前端 | React 18 + Vite + Tailwind CSS | 现代化SPA管理界面 |
 | 容器 | Docker + Compose | 多服务编排 |
-| K8s部署 | Helm Chart | 分布式、自动扩缩容 |
-| CI/CD | GitHub Actions | 自动化测试、安全扫描 |
+| K8s部署 | Helm Chart | Chart 已写好，未在任何集群验证 |
+| CI/CD | GitHub Actions | 阻断项：ruff（真实缺陷规则）+ pytest；mypy/bandit 为非阻断报告 |
 
 ---
 
-## 🖥️ 全平台客户端
+## 🖥️ 客户端形态
 
-AutoIncome 提供完整的跨平台体验：
+各端的**源码**都在本仓库内，但**暂无发布任何可执行安装包**（仓库尚未创建任何 Release）。
+下表如实标注每一端当前的可运行程度，请勿把"代码存在"理解为"可以直接下载使用"。
 
-| 平台 | 技术 | 下载 | 状态 |
+| 端 | 技术 | 目录 | 当前状态 |
 |------|------|------|------|
-| **Web管理后台** | React 18 SPA | [在线演示](https://app.autoincome.dev) | ✅ |
-| **Windows桌面端** | Tauri (Rust + Web) | [下载 .msi](https://github.com/dfhhvc/auto92811/releases) | ✅ |
-| **macOS桌面端** | Tauri | [下载 .dmg](https://github.com/dfhhvc/auto92811/releases) | ✅ |
-| **Linux桌面端** | Tauri | [下载 .AppImage](https://github.com/dfhhvc/auto92811/releases) | ✅ |
-| **Android** | React Native | [下载 APK](https://github.com/dfhhvc/auto92811/releases) | ✅ |
-| **iOS** | React Native | TestFlight 内测 | 🚧 |
+| **Web 管理后台** | React 18 + Vite + Tailwind | [`frontend/`](frontend) | 可运行：源码启动后本地访问 |
+| **Windows / macOS / Linux 桌面端** | Tauri (Rust + Web) | [`clients/desktop/`](clients/desktop) | 仅有脚手架，**未构建、未发布安装包** |
+| **Android / iOS** | React Native | [`clients/mobile/`](clients/mobile) | 仅有页面脚手架，**未构建、未发布** |
+| **官网** | Next.js | [`website/`](website) | 可运行：源码启动 |
+| **浏览器插件** | — | — | 未开始 |
 
-> 桌面端和移动端安装包可在 [Releases](https://github.com/dfhhvc/auto92811/releases) 页面下载最新版本。
+本仓库**没有**线上演示站点，也**没有**可下载的 `.msi / .dmg / .AppImage / .apk`。
+需要体验请按下方"方式三：源码运行"在本地启动。
 
 ---
 
 ## 🚀 快速开始
 
-### 方式一：Docker Compose（推荐，60秒启动全套）
+### 方式一：Docker Compose
+
+> 前提：本机已装 Docker，且你需要先准备一个 LLM API Key，否则 AI 功能不可用。
 
 ```bash
 git clone https://github.com/dfhhvc/auto92811.git
@@ -127,20 +155,22 @@ docker-compose logs -f app
 
 ### 方式二：Kubernetes + Helm（生产环境）
 
-```bash
-# 添加仓库
-helm repo add autoincome https://dfhhvc.github.io/auto92811/helm
-helm repo update
+Helm Chart 源码在 [`k8s/autoincome/`](k8s/autoincome)，**未发布到任何 Helm 仓库**，
+因此请直接从本地路径安装（不要使用 `helm repo add`）：
 
-# 安装（需先配置 secretKey 和 LLM API Key）
-helm install autoincome autoincome/autoincome \
+```bash
+# 从本地 Chart 目录安装
+helm install autoincome ./k8s/autoincome \
   --set config.secretKey=$(openssl rand -hex 32) \
   --set llm.moonshot.enabled=true \
   --set llm.moonshot.apiKey=$MOONSHOT_API_KEY
 
-# 查看Pod状态
+# 查看 Pod 状态
 kubectl get pods -l app.kubernetes.io/name=autoincome
 ```
+
+> 注意：Chart 中的 `ingress` 默认域名与 CORS 白名单指向 `autoincome.dev`，
+> 该域名并非本项目所有，部署前请务必在 `values.yaml` 中改成你自己的域名。
 
 ### 方式三：源码运行（开发）
 

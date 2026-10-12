@@ -12,11 +12,11 @@ from __future__ import annotations
 from typing import Type
 
 from autoincome.core.spiders.base import BaseSpider
-from autoincome.core.spiders.v2ex import V2EXSpider
-from autoincome.core.spiders.zhihu import ZhihuSpider
 from autoincome.core.spiders.github import GitHubSpider
 from autoincome.core.spiders.jike import JikeSpider
 from autoincome.core.spiders.rss import RSSSpider
+from autoincome.core.spiders.v2ex import V2EXSpider
+from autoincome.core.spiders.zhihu import ZhihuSpider
 
 
 class SpiderRegistry:

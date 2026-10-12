@@ -10,14 +10,12 @@ Changes from v3:
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from autoincome.core.security import validate_secret_key_entropy
-
 
 # Default scoring weights (centralized)
 DEFAULT_SCORING_WEIGHTS: dict[str, float] = {

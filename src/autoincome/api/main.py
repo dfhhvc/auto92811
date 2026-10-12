@@ -19,7 +19,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy.exc import SQLAlchemyError
 from starlette_prometheus import PrometheusMiddleware, metrics
@@ -29,11 +29,13 @@ from autoincome.api.routers import (
     admin,
     auth,
     community,
-    config as config_router,
     health,
     income,
     opportunities,
     scan,
+)
+from autoincome.api.routers import (
+    config as config_router,
 )
 from autoincome.core.cache import cache
 from autoincome.core.config import get_settings

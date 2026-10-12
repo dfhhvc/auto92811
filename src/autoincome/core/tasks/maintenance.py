@@ -31,7 +31,6 @@ def cleanup_expired_tokens() -> dict[str, Any]:
 
 async def _cleanup_tokens_async() -> dict[str, Any]:
     """Async implementation of token cleanup."""
-    from autoincome.core.database import Base
 
     async with get_db_session() as db:
         # Delete tokens expired more than 7 days ago

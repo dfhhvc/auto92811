@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from autoincome.core.captcha.solver import CaptchaSolver
 
 
@@ -33,7 +31,19 @@ class TestCaptchaSolver:
 
     def test_solve_tesseract_no_pillow(self, monkeypatch):
         """Tesseract fallback returns None when Pillow not installed."""
-        monkeypatch.setattr("builtins.__import__", lambda name, *args, **kwargs: __import__(name, *args, **kwargs))
+        import builtins
+
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            # 仅模拟 pytesseract / PIL 缺失，其余 import 委托给真实实现。
+            # （历史版本此处用 lambda 直接回调 __import__，补丁后即自身递归，导致
+            #   pytest INTERNALERROR: RecursionError —— 这条测试从未真正跑通过。）
+            if name == "pytesseract" or name.startswith("PIL"):
+                raise ImportError(f"No module named {name!r} (simulated)")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", fake_import)
         solver = CaptchaSolver()
         result = solver._solve_tesseract(b"fake-image")
         assert result is None

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
-from autoincome.core.analyzer.scorer import ScoreResult, Scorer
+from autoincome.core.analyzer.scorer import Scorer
 
 
 class UserProfile:
@@ -155,8 +155,13 @@ class Recommender:
             return 1.0 if risk_level == "high" else (0.7 if risk_level == "medium" else 0.4)
 
     def _get_base_score(self, opportunity: Dict[str, Any]) -> float:
-        """Get normalized base score."""
-        score = opportunity.get("score", 5.0)
+        """Get normalized base score.
+
+        数据流中两种键并存：opportunities.py 写 score_total（DB/API 字段名），
+        scan.py 写 score。历史版本只读 score，导致携带 score_total 的机会
+        全部落到默认 5.0 —— 占 40% 权重的评分维度整体失效。
+        """
+        score = opportunity.get("score_total", opportunity.get("score", 5.0))
         return min(1.0, score / 10.0)
 
     def recommend(

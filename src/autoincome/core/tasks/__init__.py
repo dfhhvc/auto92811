@@ -111,14 +111,14 @@ def task_failure_handler(
 
 
 # Re-export task functions for convenience
-from autoincome.core.tasks.spiders import run_spider, scan_all_spiders  # noqa: E402
-from autoincome.core.tasks.notifications import send_notification, broadcast_notification  # noqa: E402
 from autoincome.core.tasks.maintenance import (  # noqa: E402
     cleanup_expired_tokens,
     cleanup_old_scan_logs,
-    refresh_cache_stats,
     database_maintenance,
+    refresh_cache_stats,
 )
+from autoincome.core.tasks.notifications import broadcast_notification, send_notification  # noqa: E402
+from autoincome.core.tasks.spiders import run_spider, scan_all_spiders  # noqa: E402
 
 __all__ = [
     "celery_app",

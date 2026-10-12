@@ -28,9 +28,10 @@ async def setup_db():
 @pytest.fixture
 def client():
     """Lazy-loaded TestClient with DB initialization."""
+    import asyncio
+
     from autoincome.api.main import app
     from autoincome.core.database import init_db
-    import asyncio
     asyncio.run(init_db())
     return TestClient(app)
 
@@ -43,7 +44,8 @@ def test_health_check(client):
     assert data["status"] == "healthy"
     assert "timestamp" in data
     assert "uptime_seconds" in data
-    assert data["database"] in ("connected", "disconnected", "error")
+    # health 端点的 database 字段是 {status, latency_ms} 结构（非纯字符串）
+    assert data["database"]["status"] in ("connected", "disconnected", "error")
 
 
 def test_list_opportunities(client):

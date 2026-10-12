@@ -5,15 +5,15 @@ Uses Zhihu public API (no auth required for hot lists).
 
 from __future__ import annotations
 
-import logging
 import re
 from typing import Any
 
 import httpx
 
+from autoincome.core.logging_config import get_logger
 from autoincome.core.spiders.base import BaseSpider
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)  # structlog 风格日志，勿用 stdlib getLogger
 
 
 class ZhihuSpider(BaseSpider):

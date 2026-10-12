@@ -5,7 +5,6 @@ Supports Pushover, email (SMTP), and generic Webhook.
 
 from __future__ import annotations
 
-import json
 import smtplib
 from abc import ABC, abstractmethod
 from email.mime.text import MIMEText

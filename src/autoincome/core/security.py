@@ -12,12 +12,10 @@ Implements OWASP-compliant security primitives:
 
 from __future__ import annotations
 
-import hashlib
 import hmac
 import math
 import re
 import secrets
-import string
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlparse
@@ -188,11 +186,12 @@ def generate_secure_token(length: int = 32) -> str:
 def generate_id() -> str:
     """Generate a secure unique identifier.
 
-    Uses secrets.token_urlsafe for cryptographically secure
-    randomness with URL-safe encoding. 16 bytes = ~22 chars,
-    128 bits of entropy — collision probability negligible.
+    Uses secrets.token_hex: fixed 16 hex characters = 64 bits of entropy.
+    用于记录 ID 与 JWT jti，碰撞概率在本应用规模下可忽略。
+    （历史版本用 token_urlsafe 再截断，长度在 17~20 之间漂移，
+    且截断会额外损失熵。）
     """
-    return secrets.token_urlsafe(16).replace("-", "").replace("_", "")[:20]
+    return secrets.token_hex(8)
 
 
 # ── Secure Comparison ─────────────────────────────────────────────

@@ -272,8 +272,8 @@ class CaptchaSolver:
     def _solve_tesseract(self, image_bytes: bytes) -> str | None:
         """Solve simple text captcha with Tesseract OCR."""
         try:
-            from PIL import Image
             import pytesseract
+            from PIL import Image
         except ImportError:
             logger.warning("tesseract_not_installed")
             return None

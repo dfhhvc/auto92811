@@ -7,7 +7,6 @@ running scans, and managing the application.
 from __future__ import annotations
 
 import argparse
-import asyncio
 import sys
 
 import uvicorn
@@ -56,7 +55,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     # Config command
-    config_parser = subparsers.add_parser("config", help="Show configuration")
+    subparsers.add_parser("config", help="Show configuration")
 
     args = parser.parse_args(argv)
 

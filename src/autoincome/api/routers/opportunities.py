@@ -10,18 +10,16 @@ import asyncio
 import time
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from autoincome.api.schemas.models import OpportunityCreate, OpportunityResponse, ScanResult
-from autoincome.api.routers.auth import get_current_user
 from autoincome.core.ai.content_analyzer import ContentAnalyzer
 from autoincome.core.ai.recommender import AIRecommender
 from autoincome.core.ai.semantic_dedup import SemanticDeduplicator
 from autoincome.core.analyzer.scorer import Scorer
-from autoincome.core.config import get_settings
-from autoincome.core.database import OpportunityModel, ScanLogModel, UserModel, get_db
+from autoincome.core.database import OpportunityModel, ScanLogModel, get_db
 from autoincome.core.logging_config import get_logger
 from autoincome.core.rate_limit import limiter
 from autoincome.core.security import generate_id

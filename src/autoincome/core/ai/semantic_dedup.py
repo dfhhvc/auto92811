@@ -7,7 +7,6 @@ matching would miss.
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import math
 from typing import Any

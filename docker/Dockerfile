@@ -13,7 +13,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
-COPY pyproject.toml ./
+# pip wheel -e "." 由 hatchling 生成元数据并打包，需要：
+#   1) README.md —— pyproject 声明 readme = "README.md"
+#   2) src/      —— [tool.hatch.build.targets.wheel] packages = ["src/autoincome"]
+# 历史版本只 COPY pyproject.toml，构建必然失败（v4.1.0 起 docker job 恒红）。
+COPY pyproject.toml README.md ./
+COPY src/ ./src/
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir hatchling && \
     pip wheel --no-cache-dir --wheel-dir /app/wheels -e "."
